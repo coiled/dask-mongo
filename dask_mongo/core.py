@@ -1,14 +1,11 @@
-import json
 from typing import Dict
 
 import dask
-import dask.dataframe as dd
+# import dask.dataframe as dd
 import pandas as pd
-import pymongo
+import pymongo  # noqa: F401
 from dask import delayed
 from pymongo import MongoClient
-
-# write to mongo db
 
 
 def check_db_exists(client, db):
@@ -28,7 +25,6 @@ def write_mongo(
     database,
     coll,
 ):
-    print(type(df))
     documents = df.to_dict("records")
 
     mongo_client = MongoClient(**connection_args)
