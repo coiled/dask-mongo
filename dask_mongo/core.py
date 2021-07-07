@@ -37,8 +37,8 @@ def to_mongo(
     df,
     *,
     connection_args: Dict,
-    database: str,  # name of data base
-    coll: str,  # name of collection
+    database: str,
+    coll: str,
 ):
 
     mongo_client = MongoClient(**connection_args)
