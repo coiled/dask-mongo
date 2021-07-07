@@ -1,6 +1,8 @@
 import pymongo
 from pymongo import MongoClient
 import json 
+from typing import Dict
+import pandas as pd
 
 import dask
 import dask.dataframe as dd
@@ -19,21 +21,22 @@ def check_db_exists(client, db):
         return 
 
 
-#standard connection string format to connect 
-# https://docs.mongodb.com/manual/reference/connection-string/
-#If hosts is URI: 
-# mongodb://[username:password@]host1[:port1][,...hostN[:portN]][/[defaultauthdb][?options]]
+def write_mongo(
+    df: pd.DataFrame,
+    db, 
+):
+    documents = df.to_dict("records")
+
+    db.insert_many(documents)
+
 
 def to_mongo(
     df,
-    host, #hostname or IP address of the instance to connect to, or a mongodb URI, or a list of hostnames / mongodb URIs. this is optional how do we say that
+    connection_args: Dict, 
     database: str, #name of data base
 ):
 
-    #1. convert a dask dataframe into dicts
-    #2. use insert_many to dump the dicst into DB
-
-    mongo_client = MongoClient(host)
+    mongo_client = MongoClient(**connection_args)
 
     #we should check that the database exists probably
     check_db_exists(mongo_client, database)
@@ -42,18 +45,8 @@ def to_mongo(
     db = mongo_client.get_database(database)
 
     #convert df to dict -> do we convert to json and then dicst? 
+    dask.compute(
+        [write_mongo(partition, db) for partition in df.to_delayed()]
+    )
 
-    #how do we create the to_json using dask
-    #docs say 
-    # Location to write to. If a string, and there are more than one partitions in df, 
-    # should include a glob character to expand into a set of file names, or provide a name_function= parameter.
-
-    dask.dataframe.to_json(df, url_path='df.json')  
-
-    with open('df.json') as f:
-        file_data = json.load(f)
-    
-    db.insert_many(file_data)
-
-    mongo_client.close()
     
