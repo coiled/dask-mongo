@@ -7,7 +7,7 @@ setup(
     version="0.0.1",
     description="Dask + Mongo intergration",
     license="BSD",
-    packages=find_packages(where='dask-mongo'),
+    packages=find_packages(where="dask-mongo"),
     long_description=open("README.md").read(),
     python_requires=">=3.7",
     install_requires=open("requirements.txt").read().strip().split("\n"),

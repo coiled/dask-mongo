@@ -1,14 +1,14 @@
-import pymongo
-from pymongo import MongoClient
-import json 
+import json
 from typing import Dict
-import pandas as pd
 
 import dask
 import dask.dataframe as dd
+import pandas as pd
+import pymongo
 from dask import delayed
-#write to mongo db 
+from pymongo import MongoClient
 
+# write to mongo db
 
 
 def check_db_exists(client, db):
@@ -18,17 +18,18 @@ def check_db_exists(client, db):
         db in db_names
     except ValueError:
         print(f"The database {db} does not exists")
-        return 
+        return
+
 
 @delayed
 def write_mongo(
     df: pd.DataFrame,
     connection_args,
     database,
-    coll, 
+    coll,
 ):
     print(type(df))
-    documents = df.to_dict("records") 
+    documents = df.to_dict("records")
 
     mongo_client = MongoClient(**connection_args)
 
@@ -40,9 +41,9 @@ def write_mongo(
 def to_mongo(
     df,
     *,
-    connection_args: Dict, 
-    database: str, #name of data base
-    coll: str,    #name of collection
+    connection_args: Dict,
+    database: str,  # name of data base
+    coll: str,  # name of collection
 ):
 
     mongo_client = MongoClient(**connection_args)
@@ -50,7 +51,8 @@ def to_mongo(
     check_db_exists(mongo_client, database)
 
     dask.compute(
-        [write_mongo(partition, connection_args, database, coll) for partition in df.to_delayed()]
+        [
+            write_mongo(partition, connection_args, database, coll)
+            for partition in df.to_delayed()
+        ]
     )
-
-    
