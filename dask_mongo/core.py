@@ -22,18 +22,20 @@ def check_db_exists(client, db):
 
 
 def write_mongo(
-    df: pd.DataFrame,
-    db, 
+    df_partition,  #this is a delayed object
+    db,
+    coll, 
 ):
-    documents = df.to_dict("records")
+    documents = df_partition.compute().to_dict("records") #is there a way of avoiding the compute in here? 
 
-    db.insert_many(documents)
+    db[coll].insert_many(documents)
 
 
 def to_mongo(
     df,
     connection_args: Dict, 
     database: str, #name of data base
+    coll: str,    #name of collection
 ):
 
     mongo_client = MongoClient(**connection_args)
@@ -46,7 +48,7 @@ def to_mongo(
 
     #convert df to dict -> do we convert to json and then dicst? 
     dask.compute(
-        [write_mongo(partition, db) for partition in df.to_delayed()]
+        [write_mongo(partition, db, coll) for partition in df.to_delayed()]
     )
 
     
