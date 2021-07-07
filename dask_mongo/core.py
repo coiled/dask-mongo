@@ -24,13 +24,11 @@ def write_mongo(
     database,
     coll,
 ):
-    documents = df.to_dict("records")
-
     mongo_client = MongoClient(**connection_args)
 
     db = mongo_client.get_database(database)
 
-    db[coll].insert_many(documents)
+    db[coll].insert_many(df.to_dict("records"))
 
 
 def to_mongo(
