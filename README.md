@@ -1,5 +1,7 @@
 # Dask-Mongo
 
+This connector is an early experiment to read from/ write to a mongo database 
+
 ```python
 import dask
 import dask_mongo
