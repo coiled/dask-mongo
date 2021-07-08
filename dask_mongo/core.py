@@ -2,9 +2,8 @@ from typing import Dict
 
 import dask
 import pandas as pd
-import pymongo  # noqa: F401
+import pymongo
 from dask import delayed
-from pymongo import MongoClient
 
 
 def check_db_exists(client, db):
@@ -24,7 +23,7 @@ def write_mongo(
     database,
     coll,
 ):
-    with MongoClient(**connection_args) as mongo_client:
+    with pymongo.MongoClient(**connection_args) as mongo_client:
         db = mongo_client.get_database(database)
         db[coll].insert_many(df.to_dict("records"))
 
@@ -37,7 +36,7 @@ def to_mongo(
     coll: str,
 ):
 
-    with MongoClient(**connection_args) as mongo_client:
+    with pymongo.MongoClient(**connection_args) as mongo_client:
         check_db_exists(mongo_client, database)
 
     dask.compute(
