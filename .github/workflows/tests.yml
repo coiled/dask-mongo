@@ -1,6 +1,8 @@
 name: Tests
 
-on: [push, pull_request]
+on: push
+# TODO: Use the line below after we make this repo public
+# on: [push, pull_request]
 
 # When this workflow is queued, automatically cancel any previous running
 # or pending jobs from the same branch
