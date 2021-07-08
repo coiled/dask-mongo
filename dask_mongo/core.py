@@ -34,14 +34,26 @@ def to_mongo(
     connection_args: Dict,
     database: str,
     coll: str,
+    compute_options: Dict = None,
 ):
 
     with pymongo.MongoClient(**connection_args) as mongo_client:
         check_db_exists(mongo_client, database)
 
-    dask.compute(
-        [
-            write_mongo(partition, connection_args, database, coll)
-            for partition in df.to_delayed()
-        ]
-    )
+    partitions = [
+        write_mongo(partition, connection_args, database, coll)
+        for partition in df.to_delayed()
+    ]
+
+    if compute_options is None:
+        compute_options = {}
+
+    from distributed import get_client
+
+    try:
+        client = get_client()
+    except ValueError:
+        # Using single-machine scheduler
+        dask.compute(partitions, **compute_options)
+    else:
+        return client.compute(partitions, **compute_options)

@@ -8,3 +8,8 @@ dependencies:
   - pymongo
   - mongodb
   - pytest
+  # Temporarily need dev version of distributed to use
+  # @gen_cluster with pytest fixtures
+  - pip
+  - pip:
+    - git+https://github.com/dask/distributed
