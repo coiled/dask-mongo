@@ -11,6 +11,7 @@ setup(
     long_description=open("README.md").read(),
     python_requires=">=3.7",
     install_requires=open("requirements.txt").read().strip().split("\n"),
+    extras_require={"test": ["pytest"]},
     include_package_data=True,
     zip_safe=False,
 )

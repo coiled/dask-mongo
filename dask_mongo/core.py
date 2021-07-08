@@ -24,11 +24,9 @@ def write_mongo(
     database,
     coll,
 ):
-    mongo_client = MongoClient(**connection_args)
-
-    db = mongo_client.get_database(database)
-
-    db[coll].insert_many(df.to_dict("records"))
+    with MongoClient(**connection_args) as mongo_client:
+        db = mongo_client.get_database(database)
+        db[coll].insert_many(df.to_dict("records"))
 
 
 def to_mongo(
@@ -39,9 +37,8 @@ def to_mongo(
     coll: str,
 ):
 
-    mongo_client = MongoClient(**connection_args)
-
-    check_db_exists(mongo_client, database)
+    with MongoClient(**connection_args) as mongo_client:
+        check_db_exists(mongo_client, database)
 
     dask.compute(
         [

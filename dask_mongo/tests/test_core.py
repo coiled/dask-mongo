@@ -1,26 +1,38 @@
-from pymongo_inmemory import MongoClient
+import subprocess
+
+import dask.dataframe as dd
+import pandas as pd
+import pymongo
+import pytest
+
+from dask_mongo import to_mongo
 
 
-def test_no_database():
+@pytest.fixture
+def mongo_client(tmp_path):
+    port = 27016
+    with subprocess.Popen(
+        ["mongod", f"--dbpath={str(tmp_path)}", f"--port={port}"]
+    ) as proc:
+        client = pymongo.MongoClient(port=port)
+        yield client
+        client.close()
+        proc.terminate()
 
-    client = MongoClient()
 
-    assert client.list_database_names() == ["admin", "config", "local"]
+def test_to_mongo(mongo_client):
+    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
+    ddf = dd.from_pandas(df, npartitions=3)
+    assert mongo_client.address[1] == 27016
+    to_mongo(
+        ddf,
+        connection_args={
+            "host": mongo_client.address[0],
+            "port": mongo_client.address[1],
+        },
+        database="foo",
+        coll="bar",
+    )
 
-    # check that until no empty collection is added new database doesn't exist
-    client["new_db"]
-    assert "new_db" not in client.list_database_names()
-    assert not client["new_db"].list_collection_names()
-
-    client["new_db"]["new_coll"]
-    assert "new_db" not in client.list_database_names()
-    assert not client["new_db"].list_collection_names()
-
-    client["new_db"]["new_collection"].insert_one({"x": 1})
-    assert "new_db" in client.list_database_names()
-    assert client["new_db"].list_collection_names() == ["new_collection"]
-
-    client["new_db"].drop_collection("new_collection")
-    assert "new_db" not in client.list_database_names()
-
-    client.close()
+    assert "foo" in mongo_client.list_database_names()
+    assert ["bar"] == mongo_client["foo"].list_collection_names()
