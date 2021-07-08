@@ -34,21 +34,21 @@ async def test_to_mongo(c, s, a, b, connection_args):
     with pymongo.MongoClient(**connection_args) as mongo_client:
         db_name = "test-db"
         assert db_name not in mongo_client.list_database_names()
-        coll_name = "test-collection"
+        collection_name = "test-collection"
 
         partitions = to_mongo(
             ddf,
             connection_args=connection_args,
             database=db_name,
-            coll=coll_name,
+            collection=collection_name,
         )
         assert len(partitions) == npartitions
         await wait(partitions)
 
         assert db_name in mongo_client.list_database_names()
-        assert [coll_name] == mongo_client[db_name].list_collection_names()
+        assert [collection_name] == mongo_client[db_name].list_collection_names()
 
-        result = pd.DataFrame.from_records(mongo_client[db_name][coll_name].find())
+        result = pd.DataFrame.from_records(mongo_client[db_name][collection_name].find())
         result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
         assert_eq(ddf, result)
 
@@ -60,18 +60,18 @@ def test_to_mongo_single_machine_scheduler(connection_args):
     with pymongo.MongoClient(**connection_args) as mongo_client:
         db_name = "test-db"
         assert db_name not in mongo_client.list_database_names()
-        coll_name = "test-collection"
+        collection_name = "test-collection"
 
         to_mongo(
             ddf,
             connection_args=connection_args,
             database=db_name,
-            coll=coll_name,
+            collection=collection_name,
         )
 
         assert db_name in mongo_client.list_database_names()
-        assert [coll_name] == mongo_client[db_name].list_collection_names()
+        assert [collection_name] == mongo_client[db_name].list_collection_names()
 
-        result = pd.DataFrame.from_records(mongo_client[db_name][coll_name].find())
+        result = pd.DataFrame.from_records(mongo_client[db_name][collection_name].find())
         result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
         assert_eq(ddf, result)

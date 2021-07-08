@@ -4,6 +4,7 @@ import dask
 import pandas as pd
 import pymongo
 from dask import delayed
+from distributed import get_client
 
 
 def check_db_exists(client, db):
@@ -21,11 +22,11 @@ def write_mongo(
     df: pd.DataFrame,
     connection_args,
     database,
-    coll,
+    collection,
 ):
     with pymongo.MongoClient(**connection_args) as mongo_client:
         db = mongo_client.get_database(database)
-        db[coll].insert_many(df.to_dict("records"))
+        db[collection].insert_many(df.to_dict("records"))
 
 
 def to_mongo(
@@ -33,7 +34,7 @@ def to_mongo(
     *,
     connection_args: Dict,
     database: str,
-    coll: str,
+    collection: str,
     compute_options: Dict = None,
 ):
 
@@ -41,14 +42,12 @@ def to_mongo(
         check_db_exists(mongo_client, database)
 
     partitions = [
-        write_mongo(partition, connection_args, database, coll)
+        write_mongo(partition, connection_args, database, collection)
         for partition in df.to_delayed()
     ]
 
     if compute_options is None:
         compute_options = {}
-
-    from distributed import get_client
 
     try:
         client = get_client()
