@@ -48,7 +48,9 @@ async def test_to_mongo(c, s, a, b, connection_args):
         assert db_name in mongo_client.list_database_names()
         assert [collection_name] == mongo_client[db_name].list_collection_names()
 
-        result = pd.DataFrame.from_records(mongo_client[db_name][collection_name].find())
+        result = pd.DataFrame.from_records(
+            mongo_client[db_name][collection_name].find()
+        )
         result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
         assert_eq(ddf, result)
 
@@ -72,6 +74,8 @@ def test_to_mongo_single_machine_scheduler(connection_args):
         assert db_name in mongo_client.list_database_names()
         assert [collection_name] == mongo_client[db_name].list_collection_names()
 
-        result = pd.DataFrame.from_records(mongo_client[db_name][collection_name].find())
+        result = pd.DataFrame.from_records(
+            mongo_client[db_name][collection_name].find()
+        )
         result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
         assert_eq(ddf, result)
