@@ -1,5 +1,9 @@
 # Dask-Mongo
 
+[![Tests](https://github.com/coiled/dask-mongo/actions/workflows/tests.yml/badge.svg)](https://github.com/coiled/dask-mongo/actions/workflows/tests.yml) [![Linting](https://github.com/coiled/dask-mongo/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/coiled/dask-mongo/actions/workflows/pre-commit.yml)
+
+This connector is an early experiment to read from/ write to a mongo database 
+
 ```python
 import dask
 import dask_mongo
