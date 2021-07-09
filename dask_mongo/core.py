@@ -1,6 +1,7 @@
 from typing import Dict
 
 import dask
+import dask.dataframe as dd
 import pandas as pd
 import pymongo
 from dask import delayed
@@ -45,6 +46,30 @@ def to_mongo(
         return client.compute(partitions, **compute_options)
 
 
+@delayed
+def read_partition(
+    connection_args,
+    database,
+    collection,
+    id_min,
+    id_max,
+    match,
+):
+    with pymongo.MongoClient(**connection_args) as mongo_client:
+        db = mongo_client.get_database(database)
+
+        results = list(
+            db[collection].aggregate(
+                [
+                    {"$match": match},
+                    {"$match": {"_id": {"$gte": id_min, "$lt": id_max}}},
+                ]
+            )
+        )
+
+    return pd.DataFrame.from_records(results)
+
+
 def read_mongo(
     connection_args: Dict,
     database: str,
@@ -78,24 +103,16 @@ def read_mongo(
             )
         )
 
-        chunks_list = []
-
-        # this is what we should do using dask compute
-        for chunk in chunks_ids:
-            id_min = chunk["_id"]["min"]
-            id_max = chunk["_id"]["max"]
-
-            chunks_list.append(
-                list(
-                    db["collection"].aggregate(
-                        [
-                            {"$match": match},
-                            {"$match": {"_id": {"$gte": id_min, "$lt": id_max}}},
-                        ]
-                    )
-                )
+        chunks = [
+            read_partition(
+                connection_args,
+                database,
+                collection,
+                chunk_id["_id"]["min"],
+                chunk_id["_id"]["max"],
+                match,
             )
+            for chunk_id in chunks_ids
+        ]
 
-        # not sure how to go about this part
-        # how to make a pd dataframe one partition on dask dataframe,
-        pd.DataFrame.from_records(chunks_list[0])
+        return dd.from_delayed(chunks)
