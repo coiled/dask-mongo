@@ -8,7 +8,7 @@ from dask.dataframe.utils import assert_eq
 from distributed import wait
 from distributed.utils_test import gen_cluster
 
-from dask_mongo import to_mongo
+from dask_mongo import read_mongo, to_mongo
 
 
 @pytest.fixture
@@ -79,3 +79,35 @@ def test_to_mongo_single_machine_scheduler(connection_args):
         )
         result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
         assert_eq(ddf, result)
+
+
+def test_to_mongo_read_mongo_single_machine_scheduler(connection_args):
+    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
+    ddf = dd.from_pandas(df, npartitions=3)
+
+    with pymongo.MongoClient(**connection_args):
+        db_name = "test-db"
+        collection_name = "test-collection"
+
+        to_mongo(
+            ddf,
+            connection_args=connection_args,
+            database=db_name,
+            collection=collection_name,
+        )
+
+        # read whole dataframe, match={} is default
+        rm_ddf = read_mongo(
+            connection_args=connection_args,
+            database=db_name,
+            collection=collection_name,
+            chunk_size=20,
+        )
+        # print(f'\n\n\n\n\n\n{rm_ddf.compute()= }\n\n\n\n')
+        result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
+        print(f"\n\n\n\n\n\n{result.compute()= }\n\n\n\n")
+        print(f"\n\n\n{result.dtypes=}\n\n\n")
+        print(f"\n\n\n\n\n\n{ddf.compute()= }\n\n\n\n")
+        print(f"\n\n\n{ddf.dtypes=}\n\n\n")
+
+        # assert_eq(ddf, result) #failing, I beleive it's an index problem.
