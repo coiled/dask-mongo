@@ -94,7 +94,7 @@ def read_mongo(
         n_chunks = chunk_size // n_docs + bool(chunk_size % n_docs)
 
         chunks_ids = list(
-            db["collection"].aggregate(
+            db[collection].aggregate(
                 [
                     {"$match": match},
                     {"$bucketAuto": {"groupBy": "$_id", "buckets": n_chunks}},
