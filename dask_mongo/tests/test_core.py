@@ -103,11 +103,7 @@ def test_to_mongo_read_mongo_single_machine_scheduler(connection_args):
             collection=collection_name,
             chunk_size=20,
         )
-        # print(f'\n\n\n\n\n\n{rm_ddf.compute()= }\n\n\n\n')
-        result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
-        print(f"\n\n\n\n\n\n{result.compute()= }\n\n\n\n")
-        print(f"\n\n\n{result.dtypes=}\n\n\n")
-        print(f"\n\n\n\n\n\n{ddf.compute()= }\n\n\n\n")
-        print(f"\n\n\n{ddf.dtypes=}\n\n\n")
 
-        # assert_eq(ddf, result) #failing, I beleive it's an index problem.
+        result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
+
+        assert_eq(ddf, result, check_index=False, check_divisions=False)

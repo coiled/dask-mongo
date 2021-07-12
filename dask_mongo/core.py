@@ -54,6 +54,7 @@ def read_partition(
     id_min,
     id_max,
     match,
+    include_last=False,
 ):
     with pymongo.MongoClient(**connection_args) as mongo_client:
         db = mongo_client.get_database(database)
@@ -62,7 +63,14 @@ def read_partition(
             db[collection].aggregate(
                 [
                     {"$match": match},
-                    {"$match": {"_id": {"$gte": id_min, "$lt": id_max}}},
+                    {
+                        "$match": {
+                            "_id": {
+                                "$gte": id_min,
+                                "$lte" if include_last else "$lt": id_max,
+                            }
+                        }
+                    },
                 ]
             )
         )
@@ -111,8 +119,9 @@ def read_mongo(
                 chunk_id["_id"]["min"],
                 chunk_id["_id"]["max"],
                 match,
+                include_last=idx == len(chunks_ids) - 1,
             )
-            for chunk_id in chunks_ids
+            for idx, chunk_id in enumerate(chunks_ids)
         ]
 
         return dd.from_delayed(chunks)
