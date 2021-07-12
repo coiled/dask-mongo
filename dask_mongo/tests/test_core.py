@@ -5,7 +5,7 @@ import pandas as pd
 import pymongo
 import pytest
 from dask.dataframe.utils import assert_eq
-from distributed import wait
+from distributed import Client, wait
 from distributed.utils_test import gen_cluster
 
 from dask_mongo import read_mongo, to_mongo
@@ -79,6 +79,39 @@ def test_to_mongo_single_machine_scheduler(connection_args):
         )
         result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
         assert_eq(ddf, result)
+
+
+def test_read_mongo(connection_args):
+    client = Client()  # noqa: F841
+
+    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
+    ddf = dd.from_pandas(df, npartitions=3)
+
+    with pymongo.MongoClient(**connection_args):
+        db_name = "test-db"
+        collection_name = "test-collection"
+
+        partitions = to_mongo(
+            ddf,
+            connection_args=connection_args,
+            database=db_name,
+            collection=collection_name,
+        )
+
+        wait(partitions)
+
+        rm_ddf = read_mongo(
+            connection_args=connection_args,
+            database=db_name,
+            collection=collection_name,
+            chunk_size=20,
+        )
+
+        rm_ddf.compute()
+
+        result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
+
+        assert_eq(ddf, result, check_index=False, check_divisions=False)
 
 
 def test_to_mongo_read_mongo_single_machine_scheduler(connection_args):

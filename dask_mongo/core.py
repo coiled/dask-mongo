@@ -110,18 +110,20 @@ def read_mongo(
                 allowDiskUse=True,
             )
         )
+        meta = {k: type(v) for k, v in db[collection].find_one().items()}
+        meta["_id"] = object
 
-        chunks = [
-            read_partition(
-                connection_args,
-                database,
-                collection,
-                chunk_id["_id"]["min"],
-                chunk_id["_id"]["max"],
-                match,
-                include_last=idx == len(chunks_ids) - 1,
-            )
-            for idx, chunk_id in enumerate(chunks_ids)
-        ]
+    chunks = [
+        read_partition(
+            connection_args,
+            database,
+            collection,
+            chunk_id["_id"]["min"],
+            chunk_id["_id"]["max"],
+            match,
+            include_last=idx == len(chunks_ids) - 1,
+        )
+        for idx, chunk_id in enumerate(chunks_ids)
+    ]
 
-        return dd.from_delayed(chunks)
+    return dd.from_delayed(chunks, meta=meta)
