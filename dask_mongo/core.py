@@ -82,7 +82,7 @@ def read_mongo(
     connection_args: Dict,
     database: str,
     collection: str,
-    chunk_size: int,
+    chunksize: int,
     match: Dict = {},
 ):
     with pymongo.MongoClient(**connection_args) as mongo_client:
@@ -99,7 +99,7 @@ def read_mongo(
             )
         )["count"]
 
-        n_chunks = chunk_size // n_docs + bool(chunk_size % n_docs)
+        n_chunks = chunksize // n_docs + bool(chunksize % n_docs)
 
         chunks_ids = list(
             db[collection].aggregate(

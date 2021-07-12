@@ -104,7 +104,7 @@ def test_read_mongo(connection_args):
             connection_args=connection_args,
             database=db_name,
             collection=collection_name,
-            chunk_size=20,
+            chunksize=20,
         )
 
         rm_ddf.compute()
@@ -114,7 +114,7 @@ def test_read_mongo(connection_args):
         assert_eq(ddf, result, check_index=False, check_divisions=False)
 
 
-def test_to_mongo_read_mongo_single_machine_scheduler(connection_args):
+def test_mongo_roundtrip_single_machine_scheduler(connection_args):
     df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
     ddf = dd.from_pandas(df, npartitions=3)
 
@@ -134,7 +134,7 @@ def test_to_mongo_read_mongo_single_machine_scheduler(connection_args):
             connection_args=connection_args,
             database=db_name,
             collection=collection_name,
-            chunk_size=20,
+            chunksize=20,
         )
 
         result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
