@@ -48,7 +48,7 @@ def to_mongo(
 
 
 @delayed
-def read_partition(
+def fetch_mongo(
     connection_args,
     database,
     collection,
@@ -115,7 +115,7 @@ def read_mongo(
         meta["_id"] = object
 
     partitions = [
-        read_partition(
+        fetch_mongo(
             connection_args,
             database,
             collection,
