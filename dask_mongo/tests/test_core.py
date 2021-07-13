@@ -102,8 +102,10 @@ def test_read_mongo(connection_args, client):
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
-        chunksize=20,
+        chunksize=5,
     )
+
+    assert rm_ddf.npartitions == 2
 
     rm_ddf.compute()
 
@@ -131,8 +133,10 @@ def test_mongo_roundtrip_single_machine_scheduler(connection_args):
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
-        chunksize=20,
+        chunksize=5,
     )
+
+    assert rm_ddf.npartitions == 2
 
     result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
 
@@ -157,9 +161,11 @@ def test_read_mongo_match(connection_args):
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
-        chunksize=20,
+        chunksize=5,
         match={"a": {"$gte": 2, "$lte": 7}},
     )
+
+    assert rm_ddf.npartitions == 2
 
     result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
 

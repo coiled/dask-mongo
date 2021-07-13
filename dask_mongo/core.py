@@ -1,3 +1,4 @@
+from math import ceil
 from typing import Dict
 
 import dask
@@ -88,7 +89,7 @@ def read_mongo(
     with pymongo.MongoClient(**connection_args) as mongo_client:
         db = mongo_client.get_database(database)
 
-        n_docs = next(
+        nrows = next(
             (
                 db[collection].aggregate(
                     [
@@ -99,13 +100,13 @@ def read_mongo(
             )
         )["count"]
 
-        n_chunks = chunksize // n_docs + bool(chunksize % n_docs)
+        npartitions = int(ceil(nrows / chunksize))
 
-        chunks_ids = list(
+        partitions_ids = list(
             db[collection].aggregate(
                 [
                     {"$match": match},
-                    {"$bucketAuto": {"groupBy": "$_id", "buckets": n_chunks}},
+                    {"$bucketAuto": {"groupBy": "$_id", "buckets": npartitions}},
                 ],
                 allowDiskUse=True,
             )
@@ -113,17 +114,17 @@ def read_mongo(
         meta = {k: type(v) for k, v in db[collection].find_one().items()}
         meta["_id"] = object
 
-    chunks = [
+    partitions = [
         read_partition(
             connection_args,
             database,
             collection,
-            chunk_id["_id"]["min"],
-            chunk_id["_id"]["max"],
+            partition["_id"]["min"],
+            partition["_id"]["max"],
             match,
-            include_last=idx == len(chunks_ids) - 1,
+            include_last=idx == len(partitions_ids) - 1,
         )
-        for idx, chunk_id in enumerate(chunks_ids)
+        for idx, partition in enumerate(partitions_ids)
     ]
 
-    return dd.from_delayed(chunks, meta=meta)
+    return dd.from_delayed(partitions, meta=meta)
