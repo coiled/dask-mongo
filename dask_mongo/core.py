@@ -1,11 +1,15 @@
+from functools import partial
 from math import ceil
 from typing import Dict
 
 import dask
-import dask.dataframe as dd
 import pandas as pd
 import pymongo
 from dask import delayed
+from dask.base import tokenize
+from dask.dataframe.core import new_dd_object
+from dask.highlevelgraph import HighLevelGraph
+from dask.layers import DataFrameIOLayer
 from distributed import get_client
 
 
@@ -52,9 +56,9 @@ def fetch_mongo(
     connection_args,
     database,
     collection,
+    match,
     id_min,
     id_max,
-    match,
     include_last=False,
 ):
     with pymongo.MongoClient(**connection_args) as mongo_client:
@@ -114,17 +118,49 @@ def read_mongo(
         meta = {k: type(v) for k, v in db[collection].find_one().items()}
         meta["_id"] = object
 
-    partitions = [
-        fetch_mongo(
-            connection_args,
-            database,
-            collection,
+    label = "read-mongo-"
+    output_name = label + tokenize(database, collection, match, connection_args)
+
+    inputs_list = [
+        (
             partition["_id"]["min"],
             partition["_id"]["max"],
-            match,
-            include_last=idx == len(partitions_ids) - 1,
+            idx == len(partitions_ids) - 1,
         )
         for idx, partition in enumerate(partitions_ids)
     ]
 
-    return dd.from_delayed(partitions, meta=meta)
+    layer = DataFrameIOLayer(
+        output_name,
+        list(meta.keys()),
+        inputs_list,
+        partial(
+            fetch_mongo(
+                connection_args=connection_args,
+                database=database,
+                collection=collection,
+                match=match,
+            )
+        ),
+        label=label,
+    )
+    divisions = tuple([None] * (len(inputs_list) + 1))
+
+    graph = HighLevelGraph({output_name: layer}, {output_name: set()})
+
+    return new_dd_object(graph, output_name, list(meta.items()), divisions)
+
+    # partitions = [
+    #     fetch_mongo(
+    #         connection_args,
+    #         database,
+    #         collection,
+    #         partition["_id"]["min"],
+    #         partition["_id"]["max"],
+    #         match,
+    #         include_last=idx == len(partitions_ids) - 1,
+    #     )
+    #     for idx, partition in enumerate(partitions_ids)
+    # ]
+
+    # return dd.from_delayed(partitions, meta=meta)
