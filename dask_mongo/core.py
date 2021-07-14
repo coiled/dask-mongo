@@ -1,7 +1,9 @@
+from copy import deepcopy
 from math import ceil
 from typing import Dict
 
 import dask
+import dask.bag as db
 import dask.dataframe as dd
 import pandas as pd
 import pymongo
@@ -11,18 +13,20 @@ from distributed import get_client
 
 @delayed
 def write_mongo(
-    df: pd.DataFrame,
+    values,
     connection_args,
     database,
     collection,
 ):
     with pymongo.MongoClient(**connection_args) as mongo_client:
-        db = mongo_client.get_database(database)
-        db[collection].insert_many(df.to_dict("records"))
+        database_ = mongo_client.get_database(database)
+        # NOTE: `insert_many` will mutate its input by inserting a "_id" entry.
+        # This can lead to confusing results, so we make a deepcopy to avoid this.
+        database_[collection].insert_many(deepcopy(values))
 
 
 def to_mongo(
-    df,
+    bag: db.Bag,
     *,
     connection_args: Dict,
     database: str,
@@ -35,7 +39,7 @@ def to_mongo(
 
     partitions = [
         write_mongo(partition, connection_args, database, collection)
-        for partition in df.to_delayed()
+        for partition in bag.to_delayed()
     ]
 
     try:
