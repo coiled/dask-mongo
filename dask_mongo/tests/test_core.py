@@ -183,19 +183,23 @@ def test_read_mongo_chunksize(connection_args):
     )
 
     # divides evenly total nrows, 10/5 = 2
-    rm_ddf_chunksize_5 = read_mongo(
+    ddf = read_mongo(
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
         chunksize=5,
     )
-    # does not divides evenly total nrows, 10/4 -> 3
-    rm_ddf_chunksize_4 = read_mongo(
+
+    assert ddf.npartitions == 2
+    assert tuple(ddf.map_partitions(lambda df: len(df)).compute()) == (5, 5)
+
+    # does not divides evenly total nrows, 10/3 -> 4
+    ddf = read_mongo(
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
-        chunksize=4,
+        chunksize=3,
     )
 
-    assert rm_ddf_chunksize_5.npartitions == 2
-    assert rm_ddf_chunksize_4.npartitions == 3
+    assert ddf.npartitions == 4
+    assert tuple(ddf.map_partitions(lambda df: len(df)).compute()) == (3, 3, 3, 1)
