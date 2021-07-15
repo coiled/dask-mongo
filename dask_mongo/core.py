@@ -4,8 +4,6 @@ from typing import Dict
 
 import dask
 import dask.bag as db
-import dask.dataframe as dd
-import pandas as pd
 import pymongo
 from dask import delayed
 from distributed import get_client
@@ -62,10 +60,10 @@ def fetch_mongo(
     include_last=False,
 ):
     with pymongo.MongoClient(**connection_args) as mongo_client:
-        db = mongo_client.get_database(database)
+        database_ = mongo_client.get_database(database)
 
         results = list(
-            db[collection].aggregate(
+            database_[collection].aggregate(
                 [
                     {"$match": match},
                     {
@@ -80,7 +78,7 @@ def fetch_mongo(
             )
         )
 
-    return pd.DataFrame.from_records(results)
+    return results
 
 
 def read_mongo(
@@ -91,11 +89,11 @@ def read_mongo(
     match: Dict = {},
 ):
     with pymongo.MongoClient(**connection_args) as mongo_client:
-        db = mongo_client.get_database(database)
+        database_ = mongo_client.get_database(database)
 
         nrows = next(
             (
-                db[collection].aggregate(
+                database_[collection].aggregate(
                     [
                         {"$match": match},
                         {"$count": "count"},
@@ -107,7 +105,7 @@ def read_mongo(
         npartitions = int(ceil(nrows / chunksize))
 
         partitions_ids = list(
-            db[collection].aggregate(
+            database_[collection].aggregate(
                 [
                     {"$match": match},
                     {"$bucketAuto": {"groupBy": "$_id", "buckets": npartitions}},
@@ -115,8 +113,6 @@ def read_mongo(
                 allowDiskUse=True,
             )
         )
-        meta = {k: type(v) for k, v in db[collection].find_one().items()}
-        meta["_id"] = object
 
     partitions = [
         fetch_mongo(
@@ -131,4 +127,4 @@ def read_mongo(
         for idx, partition in enumerate(partitions_ids)
     ]
 
-    return dd.from_delayed(partitions, meta=meta)
+    return db.from_delayed(partitions)

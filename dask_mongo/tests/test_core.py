@@ -2,8 +2,6 @@ import random
 import subprocess
 
 import dask.bag as db
-import dask.dataframe as dd
-import pandas as pd
 import pymongo
 import pytest
 from dask.bag.utils import assert_eq
@@ -102,14 +100,15 @@ def test_to_mongo_single_machine_scheduler(connection_args):
 
 
 def test_read_mongo(connection_args, client):
-    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
-    ddf = dd.from_pandas(df, npartitions=3)
+    records = gen_data(size=10)
+    npartitions = 3
+    b = db.from_sequence(records, npartitions=npartitions)
 
     db_name = "test-db"
     collection_name = "test-collection"
 
     partitions = to_mongo(
-        ddf,
+        b,
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
@@ -117,62 +116,66 @@ def test_read_mongo(connection_args, client):
 
     wait(partitions)
 
-    rm_ddf = read_mongo(
+    rec_read = read_mongo(
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
         chunksize=5,
     )
 
-    rm_ddf.compute()
-
-    result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
-
-    assert_eq(ddf, result, check_index=False, check_divisions=False)
+    results = [
+        {k: v for k, v in result.items() if k != "_id"} for result in rec_read.compute()
+    ]
+    results = sorted(results, key=lambda x: x["idx"])
+    assert_eq(b, results)
 
 
 def test_mongo_roundtrip_single_machine_scheduler(connection_args):
-    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
-    ddf = dd.from_pandas(df, npartitions=3)
+    records = gen_data(size=10)
+    npartitions = 3
+    b = db.from_sequence(records, npartitions=npartitions)
 
     db_name = "test-db"
     collection_name = "test-collection"
 
     to_mongo(
-        ddf,
+        b,
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
     )
 
     # read whole dataframe, match={} is default
-    rm_ddf = read_mongo(
+    rec_read = read_mongo(
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
         chunksize=5,
     )
 
-    result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
-
-    assert_eq(ddf, result, check_index=False, check_divisions=False)
+    results = [
+        {k: v for k, v in result.items() if k != "_id"} for result in rec_read.compute()
+    ]
+    results = sorted(results, key=lambda x: x["idx"])
+    assert_eq(b, results)
 
 
 def test_read_mongo_match(connection_args):
-    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
-    ddf = dd.from_pandas(df, npartitions=3)
+    records = gen_data(size=10)
+    npartitions = 3
+    b = db.from_sequence(records, npartitions=npartitions)
 
     db_name = "test-db"
     collection_name = "test-collection"
 
     to_mongo(
-        ddf,
+        b,
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
     )
 
-    rm_ddf = read_mongo(
+    rec_read = read_mongo(
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
@@ -180,45 +183,52 @@ def test_read_mongo_match(connection_args):
         match={"a": {"$gte": 2, "$lte": 7}},
     )
 
-    result = rm_ddf.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
+    results = [
+        {k: v for k, v in result.items() if k != "_id"} for result in rec_read.compute()
+    ]
 
-    ddf_match = ddf[(ddf["a"] >= 2) & (ddf["a"] <= 7)]
-
-    assert_eq(ddf_match, result, check_index=False, check_divisions=False)
+    results = sorted(results, key=lambda x: x["idx"])
+    assert_eq(b, results)
 
 
 def test_read_mongo_chunksize(connection_args):
-    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
-    ddf = dd.from_pandas(df, npartitions=3)
+    records = gen_data(size=10)
+    npartitions = 3
+    b = db.from_sequence(records, npartitions=npartitions)
 
     db_name = "test-db"
     collection_name = "test-collection"
 
     to_mongo(
-        ddf,
+        b,
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
     )
 
     # divides evenly total nrows, 10/5 = 2
-    ddf = read_mongo(
+    rec_read = read_mongo(
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
         chunksize=5,
     )
 
-    assert ddf.npartitions == 2
-    assert tuple(ddf.map_partitions(lambda df: len(df)).compute()) == (5, 5)
+    assert rec_read.npartitions == 2
+    assert tuple(rec_read.map_partitions(lambda rec: len(rec)).compute()) == (5, 5)
 
     # does not divides evenly total nrows, 10/3 -> 4
-    ddf = read_mongo(
+    rec_read = read_mongo(
         connection_args=connection_args,
         database=db_name,
         collection=collection_name,
         chunksize=3,
     )
 
-    assert ddf.npartitions == 4
-    assert tuple(ddf.map_partitions(lambda df: len(df)).compute()) == (3, 3, 3, 1)
+    assert rec_read.npartitions == 4
+    assert tuple(rec_read.map_partitions(lambda rec: len(rec)).compute()) == (
+        3,
+        3,
+        3,
+        1,
+    )
