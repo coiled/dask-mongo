@@ -31,7 +31,23 @@ def to_mongo(
     collection: str,
     compute_options: Dict = None,
 ):
+    """
+    Writes a dask.bag into a Mongo database.
 
+    Parameters
+    ----------
+    bag:
+      dask.bag to write into the database.
+    connection_args:
+      Dictionary of connection arguments needed to connect to the MongoClient.
+    database:
+      Name of the database where is located the collection that will contain the data.
+      If it does not exists it will be created.
+    collection:
+      Name of the collection where to write the data. If it does not exists it will be created.
+    compute_options:
+      Dictionary of compute_options that can be passed to the dask client.
+    """
     if compute_options is None:
         compute_options = {}
 
@@ -88,6 +104,23 @@ def read_mongo(
     chunksize: int,
     match: Dict = {},
 ):
+    """
+    Reads data from a Mongo database into a dask.bag.
+
+    Parameters
+    ----------
+    connection_args:
+      Dictionary of connection arguments needed to connect to the MongoClient.
+    database:
+      Name of the database where is located the collection that contains the data to be read.
+    collection:
+      Name of the collection that contains the data to be read.
+    chunksize:
+      Number of rows desired per partitions.
+    match:
+      Dictionary with match expression. By default it will bring all the documents in the collection.
+    """
+
     with pymongo.MongoClient(**connection_args) as mongo_client:
         database_ = mongo_client.get_database(database)
 
