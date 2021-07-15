@@ -96,6 +96,7 @@ def test_to_mongo_single_machine_scheduler(connection_args):
             {k: v for k, v in result.items() if k != "_id"} for result in results
         ]
         results = sorted(results, key=lambda x: x["idx"])
+
         assert_eq(b, results)
 
 
@@ -123,9 +124,7 @@ def test_read_mongo(connection_args, client):
         chunksize=5,
     )
 
-    results = [
-        {k: v for k, v in result.items() if k != "_id"} for result in rec_read.compute()
-    ]
+    results = [{k: v for k, v in result.items() if k != "_id"} for result in rec_read]
     results = sorted(results, key=lambda x: x["idx"])
     assert_eq(b, results)
 
@@ -153,9 +152,7 @@ def test_mongo_roundtrip_single_machine_scheduler(connection_args):
         chunksize=5,
     )
 
-    results = [
-        {k: v for k, v in result.items() if k != "_id"} for result in rec_read.compute()
-    ]
+    results = [{k: v for k, v in result.items() if k != "_id"} for result in rec_read]
     results = sorted(results, key=lambda x: x["idx"])
     assert_eq(b, results)
 
@@ -180,15 +177,16 @@ def test_read_mongo_match(connection_args):
         database=db_name,
         collection=collection_name,
         chunksize=5,
-        match={"a": {"$gte": 2, "$lte": 7}},
+        match={"idx": {"$gte": 2, "$lte": 7}},
     )
 
-    results = [
-        {k: v for k, v in result.items() if k != "_id"} for result in rec_read.compute()
-    ]
+    results = [{k: v for k, v in result.items() if k != "_id"} for result in rec_read]
 
     results = sorted(results, key=lambda x: x["idx"])
-    assert_eq(b, results)
+
+    b_filtered = b.filter(lambda x: 2 <= x["idx"] <= 7)
+
+    assert_eq(b_filtered, results)
 
 
 def test_read_mongo_chunksize(connection_args):
