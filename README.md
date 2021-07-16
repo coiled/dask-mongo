@@ -2,21 +2,52 @@
 
 [![Tests](https://github.com/coiled/dask-mongo/actions/workflows/tests.yml/badge.svg)](https://github.com/coiled/dask-mongo/actions/workflows/tests.yml) [![Linting](https://github.com/coiled/dask-mongo/actions/workflows/pre-commit.yml/badge.svg)](https://github.com/coiled/dask-mongo/actions/workflows/pre-commit.yml)
 
-This connector is an early experiment to read from/ write to a mongo database 
+Read and write data to MongoDB with Dask
+
+## Installation 
+
+You can install `dask-mongo` from PyPI 
+
+```
+pip install dask-mongo
+```
+
+## Example
 
 ```python
-import dask
+import dask.bag as db
 import dask_mongo
 
-# Create Dask DataFrame with random data
-df = dask.datasets.timeseries()
+# Create Dask Bag
+records = [
+    {"name": "Alice", "fruit": "apricots"},
+    {"name": "Bob", "fruit": ["apricots", "cherries"]},
+    {"name": "John", "age": 17, "sports": "cycling"},
+]
 
-# Write DataFrame to Mongo database
-dask_mongo.to_mongo(df, ...)
+b = db.from_sequence(records)
 
-# Read DataFrame from Mongo database
-df = dask_mongo.read_mongo(...)
+# Write to a Mongo database
+dask_mongo.to_mongo(
+    b,
+    database="your_database",
+    collection="your_collection",
+    connection_kwargs={"host": "localhost", "port": 27017},
+)
+
+# Read Dask Bag from Mongo database
+b = dask_mongo.read_mongo(
+    database="your_database",
+    collection="your_collection",
+    connection_kwargs={"host": "localhost", "port": 27017},
+    chunksize=2,
+)
 
 # Perform normal operations with Dask
-df.x.mean().compute()
+names = b.pluck("name").compute()
+assert names == ["Alice", "Bob", "John"]
 ```
+
+## License 
+
+[BSD-3](LICENSE)
