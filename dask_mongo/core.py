@@ -132,7 +132,7 @@ def read_mongo(
         )
 
     common_args = (connection_args, database, collection, match)
-    name = "read_mongo-" + tokenize(common_args)
+    name = "read_mongo-" + tokenize(common_args, chunksize)
     dsk = {
         (name, i): (
             fetch_mongo,
