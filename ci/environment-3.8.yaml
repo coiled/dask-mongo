@@ -4,12 +4,6 @@ channels:
 dependencies:
   - python=3.8
   - dask
-  - pandas
   - pymongo
   - mongodb
   - pytest
-  # Temporarily need dev version of distributed to use
-  # @gen_cluster with pytest fixtures
-  - pip
-  - pip:
-    - git+https://github.com/dask/distributed

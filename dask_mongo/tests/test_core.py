@@ -1,14 +1,16 @@
+import random
 import subprocess
+from copy import deepcopy
 
-import dask.dataframe as dd
-import pandas as pd
+import dask.bag as db
 import pymongo
 import pytest
-from dask.dataframe.utils import assert_eq
+from dask.bag.utils import assert_eq
 from distributed import wait
-from distributed.utils_test import gen_cluster
+from distributed.utils_test import cluster_fixture  # noqa: F401
+from distributed.utils_test import client, gen_cluster, loop  # noqa: F401
 
-from dask_mongo import to_mongo
+from dask_mongo import read_mongo, to_mongo
 
 
 @pytest.fixture
@@ -25,57 +27,149 @@ def connection_args(tmp_path):
         proc.terminate()
 
 
+def gen_data(size=10):
+    records = [
+        {
+            "name": random.choice(["fred", "wilma", "barney", "betty"]),
+            "number": random.randint(0, 100),
+            "idx": i,
+        }
+        for i in range(size)
+    ]
+    return records
+
+
 @gen_cluster(client=True, clean_kwargs={"threads": False})
 async def test_to_mongo(c, s, a, b, connection_args):
-    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
+    records = gen_data(size=10)
     npartitions = 3
-    ddf = dd.from_pandas(df, npartitions=npartitions)
+    b = db.from_sequence(records, npartitions=npartitions)
 
     with pymongo.MongoClient(**connection_args) as mongo_client:
-        db_name = "test-db"
-        assert db_name not in mongo_client.list_database_names()
-        collection_name = "test-collection"
+        database = "test-db"
+        assert database not in mongo_client.list_database_names()
+        collection = "test-collection"
 
         partitions = to_mongo(
-            ddf,
+            b,
             connection_args=connection_args,
-            database=db_name,
-            collection=collection_name,
+            database=database,
+            collection=collection,
         )
         assert len(partitions) == npartitions
         await wait(partitions)
 
-        assert db_name in mongo_client.list_database_names()
-        assert [collection_name] == mongo_client[db_name].list_collection_names()
+        assert database in mongo_client.list_database_names()
+        assert [collection] == mongo_client[database].list_collection_names()
 
-        result = pd.DataFrame.from_records(
-            mongo_client[db_name][collection_name].find()
-        )
-        result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
-        assert_eq(ddf, result)
+        results = list(mongo_client[database][collection].find())
+    # Drop "_id" and sort by "idx" for comparison
+    results = [{k: v for k, v in result.items() if k != "_id"} for result in results]
+    results = sorted(results, key=lambda x: x["idx"])
+    assert_eq(b, results)
 
 
 def test_to_mongo_single_machine_scheduler(connection_args):
-    df = pd.DataFrame({"a": range(10), "b": range(10, 20)})
-    ddf = dd.from_pandas(df, npartitions=3)
+    records = gen_data(size=10)
+    npartitions = 3
+    b = db.from_sequence(records, npartitions=npartitions)
 
     with pymongo.MongoClient(**connection_args) as mongo_client:
-        db_name = "test-db"
-        assert db_name not in mongo_client.list_database_names()
-        collection_name = "test-collection"
+        database = "test-db"
+        assert database not in mongo_client.list_database_names()
+        collection = "test-collection"
 
         to_mongo(
-            ddf,
+            b,
             connection_args=connection_args,
-            database=db_name,
-            collection=collection_name,
+            database=database,
+            collection=collection,
         )
 
-        assert db_name in mongo_client.list_database_names()
-        assert [collection_name] == mongo_client[db_name].list_collection_names()
+        assert database in mongo_client.list_database_names()
+        assert [collection] == mongo_client[database].list_collection_names()
 
-        result = pd.DataFrame.from_records(
-            mongo_client[db_name][collection_name].find()
-        )
-        result = result.drop(columns=["_id"]).sort_values(by="a").reset_index(drop=True)
-        assert_eq(ddf, result)
+        results = list(mongo_client[database][collection].find())
+    # Drop "_id" and sort by "idx" for comparison
+    results = [{k: v for k, v in result.items() if k != "_id"} for result in results]
+    results = sorted(results, key=lambda x: x["idx"])
+    assert_eq(b, results)
+
+
+def test_read_mongo(connection_args, client):
+    records = gen_data(size=10)
+    database = "test-db"
+    collection = "test-collection"
+
+    with pymongo.MongoClient(**connection_args) as mongo_client:
+        database_ = mongo_client.get_database(database)
+        database_[collection].insert_many(deepcopy(records))
+
+    b = read_mongo(
+        connection_args=connection_args,
+        database=database,
+        collection=collection,
+        chunksize=5,
+    )
+
+    b = b.map(lambda x: {k: v for k, v in x.items() if k != "_id"})
+    assert_eq(b, records)
+
+
+def test_read_mongo_match(connection_args):
+    records = gen_data(size=10)
+    database = "test-db"
+    collection = "test-collection"
+
+    with pymongo.MongoClient(**connection_args) as mongo_client:
+        database_ = mongo_client.get_database(database)
+        database_[collection].insert_many(deepcopy(records))
+
+    b = read_mongo(
+        connection_args=connection_args,
+        database=database,
+        collection=collection,
+        chunksize=5,
+        match={"idx": {"$gte": 2, "$lte": 7}},
+    )
+
+    b = b.map(lambda x: {k: v for k, v in x.items() if k != "_id"})
+    expected = [record for record in records if 2 <= record["idx"] <= 7]
+    assert_eq(b, expected)
+
+
+def test_read_mongo_chunksize(connection_args):
+    records = gen_data(size=10)
+    database = "test-db"
+    collection = "test-collection"
+
+    with pymongo.MongoClient(**connection_args) as mongo_client:
+        database_ = mongo_client.get_database(database)
+        database_[collection].insert_many(deepcopy(records))
+
+    # divides evenly total nrows, 10/5 = 2
+    b = read_mongo(
+        connection_args=connection_args,
+        database=database,
+        collection=collection,
+        chunksize=5,
+    )
+
+    assert b.npartitions == 2
+    assert tuple(b.map_partitions(lambda rec: len(rec)).compute()) == (5, 5)
+
+    # does not divides evenly total nrows, 10/3 -> 4
+    b = read_mongo(
+        connection_args=connection_args,
+        database=database,
+        collection=collection,
+        chunksize=3,
+    )
+
+    assert b.npartitions == 4
+    assert tuple(b.map_partitions(lambda rec: len(rec)).compute()) == (
+        3,
+        3,
+        3,
+        1,
+    )
