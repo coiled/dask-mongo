@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import copy
 from math import ceil
 from typing import Any
 
@@ -20,7 +21,7 @@ def write_mongo(
         coll = mongo_client[database][collection]
         # `insert_many` will mutate its input by inserting a "_id" entry.
         # This can lead to confusing results; pass copies to it to preserve the input.
-        values = [v.copy() for v in values]
+        values = [copy(v) for v in values]
         coll.insert_many(values)
 
 
