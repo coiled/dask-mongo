@@ -75,23 +75,10 @@ def fetch_mongo(
     id_max: ObjectId,
     include_last: bool,
 ) -> list[dict[str, Any]]:
+    match2 = {"_id": {"$gte": id_min, "$lte" if include_last else "$lt": id_max}}
     with pymongo.MongoClient(**connection_kwargs) as mongo_client:
         coll = mongo_client[database][collection]
-        return list(
-            coll.aggregate(
-                [
-                    {"$match": match},
-                    {
-                        "$match": {
-                            "_id": {
-                                "$gte": id_min,
-                                "$lte" if include_last else "$lt": id_max,
-                            }
-                        }
-                    },
-                ]
-            )
-        )
+        return list(coll.aggregate([{"$match": match}, {"$match": match2}]))
 
 
 def read_mongo(
