@@ -6,7 +6,6 @@ import dask.bag as db
 import pymongo
 import pytest
 from dask.bag.utils import assert_eq
-from distributed import wait
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import client, gen_cluster, loop  # noqa: F401
 
@@ -40,52 +39,49 @@ def gen_data(size=10):
 
 
 @gen_cluster(client=True, clean_kwargs={"threads": False})
-async def test_to_mongo(c, s, a, b, connection_args):
+async def test_to_mongo_distributed(c, s, a, b, connection_args):
     records = gen_data(size=10)
     npartitions = 3
     b = db.from_sequence(records, npartitions=npartitions)
 
+    database = "test-db"
+    collection = "test-collection"
+    delayed_ = to_mongo(
+        b,
+        connection_args=connection_args,
+        database=database,
+        collection=collection,
+    )
+
     with pymongo.MongoClient(**connection_args) as mongo_client:
-        database = "test-db"
         assert database not in mongo_client.list_database_names()
-        collection = "test-collection"
-
-        partitions = to_mongo(
-            b,
-            connection_args=connection_args,
-            database=database,
-            collection=collection,
-        )
-        assert len(partitions) == npartitions
-        await wait(partitions)
-
+        await c.compute(delayed_)
         assert database in mongo_client.list_database_names()
         assert [collection] == mongo_client[database].list_collection_names()
-
         results = list(mongo_client[database][collection].find())
+
     # Drop "_id" and sort by "idx" for comparison
     results = [{k: v for k, v in result.items() if k != "_id"} for result in results]
     results = sorted(results, key=lambda x: x["idx"])
     assert_eq(b, results)
 
 
-def test_to_mongo_single_machine_scheduler(connection_args):
+def test_to_mongo(connection_args):
     records = gen_data(size=10)
     npartitions = 3
     b = db.from_sequence(records, npartitions=npartitions)
+    database = "test-db"
+    collection = "test-collection"
+    delayed_ = to_mongo(
+        b,
+        connection_args=connection_args,
+        database=database,
+        collection=collection,
+    )
 
     with pymongo.MongoClient(**connection_args) as mongo_client:
-        database = "test-db"
         assert database not in mongo_client.list_database_names()
-        collection = "test-collection"
-
-        to_mongo(
-            b,
-            connection_args=connection_args,
-            database=database,
-            collection=collection,
-        )
-
+        delayed_.compute()
         assert database in mongo_client.list_database_names()
         assert [collection] == mongo_client[database].list_collection_names()
 
