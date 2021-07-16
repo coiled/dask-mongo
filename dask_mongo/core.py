@@ -31,22 +31,21 @@ def to_mongo(
     collection: str,
     compute_options: Dict = None,
 ):
-    """
-    Writes a dask.bag into a Mongo database.
+    """Write a Dask Bag to a Mongo database.
 
     Parameters
     ----------
     bag:
-      dask.bag to write into the database.
+      Dask Bag to write into the database.
     connection_args:
-      Dictionary of connection arguments needed to connect to the MongoClient.
+      Connection arguments to pass to ``MongoClient``.
     database:
-      Name of the database where is located the collection that will contain the data.
-      If it does not exists it will be created.
+      Name of the database to write to. If it does not exists it will be created.
     collection:
-      Name of the collection where to write the data. If it does not exists it will be created.
+      Name of the collection within the database to write to.
+      If it does not exists it will be created.
     compute_options:
-      Dictionary of compute_options that can be passed to the dask client.
+      Keyword arguments to be forwarded to ``dask.compute()``.
     """
     if compute_options is None:
         compute_options = {}
@@ -104,19 +103,19 @@ def read_mongo(
     chunksize: int,
     match: Dict = {},
 ):
-    """
-    Reads data from a Mongo database into a dask.bag.
+    """Read data from a Mongo database into a Dask Bag.
 
     Parameters
     ----------
     connection_args:
-      Dictionary of connection arguments needed to connect to the MongoClient.
+      Connection arguments to pass to ``MongoClient``.
     database:
-      Name of the database where is located the collection that contains the data to be read.
+      Name of the database to write to. If it does not exists it will be created.
     collection:
-      Name of the collection that contains the data to be read.
+      Name of the collection within the database to write to.
+      If it does not exists it will be created.
     chunksize:
-      Number of rows desired per partitions.
+      Number of elements desired per partition.
     match:
       Dictionary with match expression. By default it will bring all the documents in the collection.
     """
