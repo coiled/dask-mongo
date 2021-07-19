@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-from setuptools import find_packages, setup
+from setuptools import setup
 
 with open("README.md", "r", encoding="utf-8") as f:
     long_description = f.read()
@@ -10,7 +10,7 @@ setup(
     version="2021.7.0",
     description="Dask + Mongo intergration",
     license="BSD",
-    packages=find_packages(where="dask-mongo"),
+    packages=["dask_mongo"],
     long_description=long_description,
     long_description_content_type="text/markdown",
     python_requires=">=3.7",
