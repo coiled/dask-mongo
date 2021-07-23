@@ -7,7 +7,7 @@ with open("README.md", "r", encoding="utf-8") as f:
 
 setup(
     name="dask-mongo",
-    version="2021.7.1",
+    version="2021.7.2",
     description="Dask + Mongo intergration",
     license="BSD",
     packages=["dask_mongo"],
