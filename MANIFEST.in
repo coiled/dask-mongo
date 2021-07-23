@@ -1,0 +1,6 @@
+recursive-include dask_mongo *.py
+
+include setup.py
+include README.md
+include LICENSE
+include MANIFEST.in
