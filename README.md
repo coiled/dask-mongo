@@ -6,10 +6,16 @@ Read and write data to MongoDB with Dask
 
 ## Installation 
 
-You can install `dask-mongo` from PyPI 
+`dask-mongo` can be installed with `pip`:
 
 ```
 pip install dask-mongo
+```
+
+or with `conda`:
+
+```
+conda install -c conda-forge dask-mongo
 ```
 
 ## Example
