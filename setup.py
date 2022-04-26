@@ -13,7 +13,7 @@ setup(
     packages=["dask_mongo"],
     long_description=long_description,
     long_description_content_type="text/markdown",
-    python_requires=">=3.7",
+    python_requires=">=3.8",
     install_requires=open("requirements.txt").read().strip().split("\n"),
     extras_require={"test": ["pytest"]},
     include_package_data=True,
