@@ -10,6 +10,10 @@ from dask.bag import Bag
 from dask.base import tokenize
 from dask.graph_manipulation import checkpoint
 
+import dask_mongo
+
+app_info = f"dask-mongo/{dask_mongo.__version__}"
+
 
 def write_mongo(
     values: list[dict],
@@ -17,7 +21,7 @@ def write_mongo(
     database: str,
     collection: str,
 ) -> None:
-    with pymongo.MongoClient(**connection_kwargs) as mongo_client:
+    with pymongo.MongoClient(appname=app_info, **connection_kwargs) as mongo_client:
         coll = mongo_client[database][collection]
         # `insert_many` will mutate its input by inserting a "_id" entry.
         # This can lead to confusing results; pass copies to it to preserve the input.
@@ -77,7 +81,7 @@ def fetch_mongo(
     include_last: bool,
 ) -> list[dict[str, Any]]:
     match2 = {"_id": {"$gte": id_min, "$lte" if include_last else "$lt": id_max}}
-    with pymongo.MongoClient(**connection_kwargs) as mongo_client:
+    with pymongo.MongoClient(appname=app_info, **connection_kwargs) as mongo_client:
         coll = mongo_client[database][collection]
         return list(coll.aggregate([{"$match": match}, {"$match": match2}]))
 
@@ -111,7 +115,7 @@ def read_mongo(
     if not match:
         match = {}
 
-    with pymongo.MongoClient(**connection_kwargs) as mongo_client:
+    with pymongo.MongoClient(appname=app_info, **connection_kwargs) as mongo_client:
         coll = mongo_client[database][collection]
 
         nrows = next(
