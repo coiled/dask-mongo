@@ -7,7 +7,8 @@ import pymongo
 import pytest
 from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
-from distributed.utils_test import client, gen_cluster, loop  # noqa: F401
+from distributed.utils_test import gen_cluster  # noqa: F401
+from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
 
 from dask_mongo import read_mongo, to_mongo
 
