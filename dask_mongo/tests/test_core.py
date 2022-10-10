@@ -9,7 +9,7 @@ from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
-from dask_mongo import read_mongo, to_mongo, get_num_clients, get_client
+from dask_mongo import read_mongo, to_mongo, _get_num_clients, _get_client, _CACHE_SIZE
 
 
 @pytest.fixture
@@ -193,9 +193,9 @@ def test_connection_pooling(connection_kwargs):
     database = "test-db"
     collection = "test-collection"
 
-    with get_client(connection_kwargs) as mongo_client:
-        database_ = mongo_client.get_database(database)
-        database_[collection].insert_many(deepcopy(records))
+    mongo_client = _get_client(connection_kwargs)
+    database_ = mongo_client.get_database(database)
+    database_[collection].insert_many(deepcopy(records))
 
     for _ in range(3):
         read_mongo(
@@ -204,12 +204,21 @@ def test_connection_pooling(connection_kwargs):
             chunksize=5,
             connection_kwargs=connection_kwargs,
         )
-        print(list(database_[collection].find({})))
-    assert get_num_clients() == 1
+    assert _get_num_clients() == 1
     read_mongo(
         database,
         collection,
         chunksize=5,
         connection_kwargs=connection_kwargs.update({"connect": True}),
     )
-    assert get_num_clients() == 2
+    assert _get_num_clients() == 2
+    for i in range(1, 20):
+        connection_kwargs.update({"maxIdleTimeMS": 1000 * i})
+        read_mongo(
+            database,
+            collection,
+            chunksize=5,
+            connection_kwargs=connection_kwargs,
+        )
+    assert _get_num_clients() == _CACHE_SIZE
+

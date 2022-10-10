@@ -16,24 +16,20 @@ from functools import lru_cache
 
 appname = f"dask-mongo/{__version__}"
 
-_CLIENTS = {}
+_CACHE_SIZE = 10
 
 
-@contextmanager
-def get_client(connection_kwargs):
-    kwargs = frozenset(connection_kwargs.items())
-    # This is necessary to allow caching of the values of kwargs.
-    @lru_cache(10)
-    def inner(kwargs):
-        return _CLIENTS.setdefault(
-            kwargs, pymongo.MongoClient(appname=appname, **dict(kwargs))
-        )
-
-    yield inner(kwargs)
+@lru_cache(_CACHE_SIZE, typed=True)
+def _cache_inner(**kwargs):
+    return pymongo.MongoClient(appname=appname, **kwargs)
 
 
-def get_num_clients():
-    return len(_CLIENTS)
+def _get_client(connection_kwargs):
+    return _cache_inner(**connection_kwargs)
+
+
+def _get_num_clients():
+    return _cache_inner.cache_info().currsize
 
 
 def write_mongo(
@@ -42,12 +38,12 @@ def write_mongo(
     database: str,
     collection: str,
 ) -> None:
-    with get_client(connection_kwargs) as mongo_client:
-        coll = mongo_client[database][collection]
-        # `insert_many` will mutate its input by inserting a "_id" entry.
-        # This can lead to confusing results; pass copies to it to preserve the input.
-        values = [copy(v) for v in values]
-        coll.insert_many(values)
+    mongo_client = _get_client(connection_kwargs)
+    coll = mongo_client[database][collection]
+    # `insert_many` will mutate its input by inserting a "_id" entry.
+    # This can lead to confusing results; pass copies to it to preserve the input.
+    values = [copy(v) for v in values]
+    coll.insert_many(values)
 
 
 def to_mongo(
@@ -102,9 +98,9 @@ def fetch_mongo(
     include_last: bool,
 ) -> list[dict[str, Any]]:
     match2 = {"_id": {"$gte": id_min, "$lte" if include_last else "$lt": id_max}}
-    with get_client(connection_kwargs) as mongo_client:
-        coll = mongo_client[database][collection]
-        return list(coll.aggregate([{"$match": match}, {"$match": match2}]))
+    mongo_client = _get_client(connection_kwargs)
+    coll = mongo_client[database][collection]
+    return list(coll.aggregate([{"$match": match}, {"$match": match2}]))
 
 
 def read_mongo(
@@ -136,22 +132,31 @@ def read_mongo(
     if not match:
         match = {}
 
-    with get_client(connection_kwargs) as mongo_client:
-        coll = mongo_client[database][collection]
+    mongo_client = _get_client(connection_kwargs)
+    coll = mongo_client[database][collection]
 
-        nrows = coll.count_documents(match)
-
-        npartitions = int(ceil(nrows / chunksize))
-
-        partitions_ids = list(
+    nrows = next(
+        (
             coll.aggregate(
                 [
                     {"$match": match},
-                    {"$bucketAuto": {"groupBy": "$_id", "buckets": npartitions}},
-                ],
-                allowDiskUse=True,
+                    {"$count": "count"},
+                ]
             )
         )
+    )["count"]
+
+    npartitions = int(ceil(nrows / chunksize))
+
+    partitions_ids = list(
+        coll.aggregate(
+            [
+                {"$match": match},
+                {"$bucketAuto": {"groupBy": "$_id", "buckets": npartitions}},
+            ],
+            allowDiskUse=True,
+        )
+    )
 
     common_args = (connection_kwargs, database, collection, match)
     name = "read_mongo-" + tokenize(common_args, chunksize)
