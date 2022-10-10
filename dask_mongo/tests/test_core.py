@@ -11,6 +11,8 @@ from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
 from dask_mongo import read_mongo, to_mongo, _get_num_clients, _get_client, _CACHE_SIZE
 
+from pymongo.event_loggers import CommandLogger
+
 
 @pytest.fixture
 def connection_kwargs(tmp_path):
@@ -209,7 +211,9 @@ def test_connection_pooling(connection_kwargs):
         database,
         collection,
         chunksize=5,
-        connection_kwargs=connection_kwargs.update({"connect": True}),
+        connection_kwargs=connection_kwargs.update(
+            {"event_listeners": [CommandLogger()]}
+        ),
     )
     assert _get_num_clients() == 2
     for i in range(1, 20):
