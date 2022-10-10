@@ -13,20 +13,28 @@ from dask.graph_manipulation import checkpoint
 from contextlib import contextmanager
 from ._version import __version__
 from functools import lru_cache
+
 appname = f"dask-mongo/{__version__}"
 
 _CLIENTS = {}
+
+
 @contextmanager
 def get_client(connection_kwargs):
     kwargs = frozenset(connection_kwargs.items())
     # This is necessary to allow caching of the values of kwargs.
     @lru_cache(10)
     def inner(kwargs):
-        return _CLIENTS.setdefault(kwargs, pymongo.MongoClient(appname=appname, **dict(kwargs)))
+        return _CLIENTS.setdefault(
+            kwargs, pymongo.MongoClient(appname=appname, **dict(kwargs))
+        )
+
     yield inner(kwargs)
+
 
 def get_num_clients():
     return len(_CLIENTS)
+
 
 def write_mongo(
     values: list[dict],

@@ -26,7 +26,6 @@ def connection_kwargs(tmp_path):
         proc.terminate()
 
 
-
 def gen_data(size=10):
     records = [
         {
@@ -188,18 +187,16 @@ def test_read_mongo_chunksize(connection_kwargs):
         1,
     )
 
+
 def test_connection_pooling(connection_kwargs):
     records = gen_data(size=10)
     database = "test-db"
     collection = "test-collection"
 
-
     with get_client(connection_kwargs) as mongo_client:
         database_ = mongo_client.get_database(database)
         database_[collection].insert_many(deepcopy(records))
 
-    import ipdb;
-    #ipdb.set_trace()
     for _ in range(3):
         read_mongo(
             database,
