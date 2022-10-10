@@ -221,4 +221,3 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
     assert _get_num_clients() == _CACHE_SIZE
-
