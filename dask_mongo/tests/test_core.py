@@ -9,8 +9,7 @@ from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
-
-from dask_mongo import read_mongo, to_mongo
+from dask_mongo import read_mongo, to_mongo, get_num_clients, get_client
 
 
 @pytest.fixture
@@ -25,6 +24,7 @@ def connection_kwargs(tmp_path):
         }
         yield connection_kwargs
         proc.terminate()
+
 
 
 def gen_data(size=10):
@@ -187,3 +187,32 @@ def test_read_mongo_chunksize(connection_kwargs):
         3,
         1,
     )
+
+def test_connection_pooling(connection_kwargs):
+    records = gen_data(size=10)
+    database = "test-db"
+    collection = "test-collection"
+
+
+    with get_client(connection_kwargs) as mongo_client:
+        database_ = mongo_client.get_database(database)
+        database_[collection].insert_many(deepcopy(records))
+
+    import ipdb;
+    #ipdb.set_trace()
+    for _ in range(3):
+        read_mongo(
+            database,
+            collection,
+            chunksize=5,
+            connection_kwargs=connection_kwargs,
+        )
+        print(list(database_[collection].find({})))
+    assert get_num_clients() == 1
+    read_mongo(
+        database,
+        collection,
+        chunksize=5,
+        connection_kwargs=connection_kwargs.update({"connect": True}),
+    )
+    assert get_num_clients() == 2

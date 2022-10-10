@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 from copy import copy
 from math import ceil
 from typing import Any
@@ -9,11 +10,23 @@ from bson import ObjectId
 from dask.bag import Bag
 from dask.base import tokenize
 from dask.graph_manipulation import checkpoint
-
+from contextlib import contextmanager
 from ._version import __version__
-
+from functools import lru_cache
 appname = f"dask-mongo/{__version__}"
 
+_CLIENTS = {}
+@contextmanager
+def get_client(connection_kwargs):
+    kwargs = frozenset(connection_kwargs.items())
+    # This is necessary to allow caching of the values of kwargs.
+    @lru_cache(10)
+    def inner(kwargs):
+        return _CLIENTS.setdefault(kwargs, pymongo.MongoClient(appname=appname, **dict(kwargs)))
+    yield inner(kwargs)
+
+def get_num_clients():
+    return len(_CLIENTS)
 
 def write_mongo(
     values: list[dict],
@@ -21,7 +34,7 @@ def write_mongo(
     database: str,
     collection: str,
 ) -> None:
-    with pymongo.MongoClient(appname=appname, **connection_kwargs) as mongo_client:
+    with get_client(connection_kwargs) as mongo_client:
         coll = mongo_client[database][collection]
         # `insert_many` will mutate its input by inserting a "_id" entry.
         # This can lead to confusing results; pass copies to it to preserve the input.
@@ -81,7 +94,7 @@ def fetch_mongo(
     include_last: bool,
 ) -> list[dict[str, Any]]:
     match2 = {"_id": {"$gte": id_min, "$lte" if include_last else "$lt": id_max}}
-    with pymongo.MongoClient(appname=appname, **connection_kwargs) as mongo_client:
+    with get_client(connection_kwargs) as mongo_client:
         coll = mongo_client[database][collection]
         return list(coll.aggregate([{"$match": match}, {"$match": match2}]))
 
@@ -115,19 +128,10 @@ def read_mongo(
     if not match:
         match = {}
 
-    with pymongo.MongoClient(appname=appname, **connection_kwargs) as mongo_client:
+    with get_client(connection_kwargs) as mongo_client:
         coll = mongo_client[database][collection]
 
-        nrows = next(
-            (
-                coll.aggregate(
-                    [
-                        {"$match": match},
-                        {"$count": "count"},
-                    ]
-                )
-            )
-        )["count"]
+        nrows = coll.count_documents(match)
 
         npartitions = int(ceil(nrows / chunksize))
 
