@@ -9,10 +9,13 @@ from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
-from pymongo.event_loggers import CommandLogger
 
 from dask_mongo import read_mongo, to_mongo
-from dask_mongo.core import _CACHE_SIZE, _get_client, _get_num_clients
+from dask_mongo.core import _CACHE_SIZE, _cache_inner, _close_clients, _get_client
+
+
+def _get_num_clients():
+    return _cache_inner.cache_info().currsize
 
 
 @pytest.fixture
@@ -195,11 +198,11 @@ def test_connection_pooling(connection_kwargs):
     records = gen_data(size=10)
     database = "test-db"
     collection = "test-collection"
-
+    _close_clients()
+    _cache_inner.cache_clear()
     mongo_client = _get_client(connection_kwargs)
     database_ = mongo_client.get_database(database)
     database_[collection].insert_many(deepcopy(records))
-
     for _ in range(3):
         read_mongo(
             database,
@@ -208,16 +211,17 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
     assert _get_num_clients() == 1
-    connection_kwargs.update({"event_listeners": [CommandLogger()]})
+    connection_kwargs.update({"host": ["localhost", "localhost:27017"]})
     read_mongo(
         database,
         collection,
         chunksize=5,
         connection_kwargs=connection_kwargs,
     )
+
     assert _get_num_clients() == 2
-    for _ in range(round(_CACHE_SIZE * 1.2)):
-        connection_kwargs.update({"event_listeners": [CommandLogger()]})
+    for i in range(round(_CACHE_SIZE * 1.2)):
+        connection_kwargs.update({"maxPoolSize": i})
         read_mongo(
             database,
             collection,

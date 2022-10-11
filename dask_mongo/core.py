@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import atexit
+import weakref
+from collections.abc import Hashable, Mapping
 from copy import copy
 from functools import lru_cache
 from math import ceil
@@ -18,9 +21,29 @@ appname = f"dask-mongo/{__version__}"
 _CACHE_SIZE = 10
 
 
-class CachedKwargs(dict):
+def _recursive_tupling(item):
+    if isinstance(item, list):
+        return tuple([_recursive_tupling(i) for i in item])
+    if isinstance(item, Mapping):
+        return tuple(
+            [(_recursive_tupling(k), _recursive_tupling(v)) for k, v in item.items()]
+        )
+    elif isinstance(item, Hashable):
+        return hash(item)
+    else:
+        return item
+
+
+class HashableKwargs(dict):
     def __hash__(self):
-        return hash(frozenset(self))
+        return hash(
+            frozenset(
+                [
+                    (_recursive_tupling(k), _recursive_tupling(v))
+                    for k, v in self.items()
+                ]
+            )
+        )
 
 
 @lru_cache(_CACHE_SIZE, typed=True)
@@ -28,12 +51,22 @@ def _cache_inner(kwargs):
     return pymongo.MongoClient(appname=appname, **kwargs)
 
 
+_CLIENTS = {}
+
+
+@atexit.register
+def _close_clients():
+    for func in _CLIENTS.values():
+        ref = func()
+        if ref:
+            ref()
+
+
 def _get_client(kwargs):
-    return _cache_inner(CachedKwargs(kwargs))
-
-
-def _get_num_clients():
-    return _cache_inner.cache_info().currsize
+    frozen_kwargs = HashableKwargs(kwargs)
+    client = _cache_inner(frozen_kwargs)
+    _CLIENTS[frozen_kwargs] = weakref.WeakMethod(client.close)
+    return client
 
 
 def write_mongo(
