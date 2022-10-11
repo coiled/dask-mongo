@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import copy
+from functools import lru_cache
 from math import ceil
 from typing import Any
 
@@ -9,8 +10,8 @@ from bson import ObjectId
 from dask.bag import Bag
 from dask.base import tokenize
 from dask.graph_manipulation import checkpoint
+
 from ._version import __version__
-from functools import lru_cache
 
 appname = f"dask-mongo/{__version__}"
 
@@ -24,7 +25,7 @@ class CachedKwargs(dict):
 
 @lru_cache(_CACHE_SIZE, typed=True)
 def _cache_inner(kwargs):
-    return pymongo.MongoClient(appname=appname, **dict(kwargs))
+    return pymongo.MongoClient(appname=appname, **kwargs)
 
 
 def _get_client(kwargs):

@@ -9,10 +9,10 @@ from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
-from dask_mongo import read_mongo, to_mongo, _get_num_clients, _get_client, _CACHE_SIZE
-
 from pymongo.event_loggers import CommandLogger
-from pymongo.encryption_options import AutoEncryptionOpts
+
+from dask_mongo import read_mongo, to_mongo
+from dask_mongo.core import _CACHE_SIZE, _get_client, _get_num_clients
 
 
 @pytest.fixture
@@ -208,8 +208,7 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
     assert _get_num_clients() == 1
-    connection_kwargs.update(
-        {"event_listeners": [CommandLogger()]})
+    connection_kwargs.update({"event_listeners": [CommandLogger()]})
     read_mongo(
         database,
         collection,
@@ -217,7 +216,7 @@ def test_connection_pooling(connection_kwargs):
         connection_kwargs=connection_kwargs,
     )
     assert _get_num_clients() == 2
-    for i in range(1, 20):
+    for i in range(1, _CACHE_SIZE + 1):
         connection_kwargs.update({"event_listeners": [CommandLogger()]})
         read_mongo(
             database,
