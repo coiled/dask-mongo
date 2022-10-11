@@ -19,6 +19,7 @@ from ._version import __version__
 appname = f"dask-mongo/{__version__}"
 
 _CACHE_SIZE = 10
+_CLIENTS = weakref.WeakValueDictionary({})
 
 
 def _recursive_tupling(item):
@@ -51,11 +52,9 @@ def _cache_inner(kwargs):
     return pymongo.MongoClient(appname=appname, **kwargs)
 
 
-_CLIENTS = {}
-
-
 @atexit.register
 def _close_clients():
+    global _CLIENTS
     for func in _CLIENTS.values():
         ref = func()
         if ref:

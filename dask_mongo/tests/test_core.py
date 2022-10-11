@@ -11,7 +11,13 @@ from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
 
 from dask_mongo import read_mongo, to_mongo
-from dask_mongo.core import _CACHE_SIZE, _cache_inner, _close_clients, _get_client
+from dask_mongo.core import (
+    _CACHE_SIZE,
+    _CLIENTS,
+    _cache_inner,
+    _close_clients,
+    _get_client,
+)
 
 
 def _get_num_clients():
@@ -229,3 +235,5 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
     assert _get_num_clients() == _CACHE_SIZE
+    _close_clients()
+    assert len(list(_CLIENTS.items())) == 0
