@@ -216,7 +216,7 @@ def test_connection_pooling(connection_kwargs):
         connection_kwargs=connection_kwargs,
     )
     assert _get_num_clients() == 2
-    for i in range(1, _CACHE_SIZE + 1):
+    for _ in range(round(_CACHE_SIZE * 1.2)):
         connection_kwargs.update({"event_listeners": [CommandLogger()]})
         read_mongo(
             database,
