@@ -12,6 +12,7 @@ from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa
 from dask_mongo import read_mongo, to_mongo, _get_num_clients, _get_client, _CACHE_SIZE
 
 from pymongo.event_loggers import CommandLogger
+from pymongo.encryption_options import AutoEncryptionOpts
 
 
 @pytest.fixture
@@ -207,17 +208,17 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
     assert _get_num_clients() == 1
+    connection_kwargs.update(
+        {"event_listeners": [CommandLogger()]})
     read_mongo(
         database,
         collection,
         chunksize=5,
-        connection_kwargs=connection_kwargs.update(
-            {"event_listeners": [CommandLogger()]}
-        ),
+        connection_kwargs=connection_kwargs,
     )
     assert _get_num_clients() == 2
     for i in range(1, 20):
-        connection_kwargs.update({"maxIdleTimeMS": 1000 * i})
+        connection_kwargs.update({"event_listeners": [CommandLogger()]})
         read_mongo(
             database,
             collection,
