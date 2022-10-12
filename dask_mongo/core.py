@@ -26,9 +26,7 @@ def _recursive_tupling(item):
     if isinstance(item, list):
         return tuple([_recursive_tupling(i) for i in item])
     if isinstance(item, Mapping):
-        return tuple(
-            [(_recursive_tupling(k), _recursive_tupling(v)) for k, v in item.items()]
-        )
+        return _freezer(item)
     else:
         return item
 
