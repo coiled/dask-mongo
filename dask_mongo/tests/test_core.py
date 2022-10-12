@@ -234,6 +234,7 @@ def test_connection_pooling(connection_kwargs):
             chunksize=5,
             connection_kwargs=connection_kwargs,
         )
-    assert _get_num_clients() == _CACHE_SIZE
     _close_clients()
-    assert len(list(_CLIENTS.items())) == 0
+
+    assert _get_num_clients() == _CACHE_SIZE
+    assert len(_CLIENTS) == 0

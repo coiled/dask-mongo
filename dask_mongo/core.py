@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import atexit
 import weakref
-from collections.abc import Hashable, Mapping
+from collections.abc import Mapping
 from copy import copy
 from functools import lru_cache
 from math import ceil
@@ -29,42 +29,35 @@ def _recursive_tupling(item):
         return tuple(
             [(_recursive_tupling(k), _recursive_tupling(v)) for k, v in item.items()]
         )
-    elif isinstance(item, Hashable):
-        return hash(item)
     else:
         return item
 
 
-class HashableKwargs(dict):
-    def __hash__(self):
-        return hash(
-            frozenset(
-                [
-                    (_recursive_tupling(k), _recursive_tupling(v))
-                    for k, v in self.items()
-                ]
-            )
-        )
+def _freezer(d):
+    return frozenset(
+        [(_recursive_tupling(k), _recursive_tupling(v)) for k, v in d.items()]
+    )
 
 
 @lru_cache(_CACHE_SIZE, typed=True)
 def _cache_inner(kwargs):
-    return pymongo.MongoClient(appname=appname, **kwargs)
+    print(dict(kwargs))
+    return pymongo.MongoClient(appname=appname, **dict(kwargs))
 
 
 @atexit.register
 def _close_clients():
     global _CLIENTS
-    for func in _CLIENTS.values():
-        ref = func()
-        if ref:
-            ref()
+    for client in _CLIENTS.values():
+        client.close()
+    _CLIENTS = weakref.WeakValueDictionary({})
 
 
 def _get_client(kwargs):
-    frozen_kwargs = HashableKwargs(kwargs)
+    global _CLIENTS
+    frozen_kwargs = _freezer(kwargs)
     client = _cache_inner(frozen_kwargs)
-    _CLIENTS[frozen_kwargs] = weakref.WeakMethod(client.close)
+    _CLIENTS[frozen_kwargs] = client
     return client
 
 
