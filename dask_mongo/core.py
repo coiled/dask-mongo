@@ -41,7 +41,6 @@ def _freezer(d):
 
 @lru_cache(_CACHE_SIZE, typed=True)
 def _cache_inner(kwargs):
-    print(dict(kwargs))
     return pymongo.MongoClient(appname=appname, **dict(kwargs))
 
 
