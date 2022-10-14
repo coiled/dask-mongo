@@ -33,7 +33,7 @@ def _recursive_tupling(item):
         return item
 
 
-class FrozenKwargs(dict):
+class _FrozenKwargs(dict):
     def __hash__(self):
         return hash(
             frozenset(
@@ -60,7 +60,7 @@ def _close_clients():
 
 def _get_client(kwargs):
     global _CLIENTS
-    frozen_kwargs = FrozenKwargs(kwargs)
+    frozen_kwargs = _FrozenKwargs(kwargs)
     client = _cache_inner(frozen_kwargs)
     _CLIENTS[frozen_kwargs] = client
     return client
