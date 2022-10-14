@@ -15,6 +15,7 @@ from dask_mongo import read_mongo, to_mongo
 from dask_mongo.core import (
     _CACHE_SIZE,
     _CLIENTS,
+    FrozenKwargs,
     _cache_inner,
     _close_clients,
     _get_client,
@@ -272,3 +273,8 @@ def test_connection_pooling_hashing(connection_kwargs):
     assert get_client_opts(client2) != get_client_opts(client3)
     for opts, c in [(opts1, client1), (opts1, client2), (opts3, client3)]:
         assert opts == get_client_opts(c)
+
+    a = FrozenKwargs({"auto_encryption_opts": opts3})
+    a_hash = hash(a)
+    a["foo"] = ["bar"]
+    assert a_hash != hash(a)

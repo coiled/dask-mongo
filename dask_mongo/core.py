@@ -34,6 +34,10 @@ def _recursive_tupling(item):
 
 
 class FrozenKwargs(dict):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.hash = None
+
     def __hash__(self):
         return hash(
             frozenset(
