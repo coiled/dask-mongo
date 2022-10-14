@@ -18,7 +18,7 @@ from ._version import __version__
 
 appname = f"dask-mongo/{__version__}"
 
-_CACHE_SIZE = 10
+_CACHE_SIZE = 16
 _CLIENTS = weakref.WeakValueDictionary({})
 
 
@@ -26,20 +26,28 @@ def _recursive_tupling(item):
     if isinstance(item, list):
         return tuple([_recursive_tupling(i) for i in item])
     if isinstance(item, Mapping):
-        return _freezer(item)
+        return tuple(
+            [(_recursive_tupling(k), _recursive_tupling(v)) for k, v in item.items()]
+        )
     else:
         return item
 
 
-def _freezer(d):
-    return frozenset(
-        [(_recursive_tupling(k), _recursive_tupling(v)) for k, v in d.items()]
-    )
+class FrozenKwargs(dict):
+    def __hash__(self):
+        return hash(
+            frozenset(
+                [
+                    (_recursive_tupling(k), _recursive_tupling(v))
+                    for k, v in self.items()
+                ]
+            )
+        )
 
 
 @lru_cache(_CACHE_SIZE, typed=True)
 def _cache_inner(kwargs):
-    return pymongo.MongoClient(appname=appname, **dict(kwargs))
+    return pymongo.MongoClient(appname=appname, **kwargs)
 
 
 @atexit.register
@@ -52,7 +60,7 @@ def _close_clients():
 
 def _get_client(kwargs):
     global _CLIENTS
-    frozen_kwargs = _freezer(kwargs)
+    frozen_kwargs = FrozenKwargs(kwargs)
     client = _cache_inner(frozen_kwargs)
     _CLIENTS[frozen_kwargs] = client
     return client

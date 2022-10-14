@@ -9,6 +9,7 @@ from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
+from pymongo.encryption_options import AutoEncryptionOpts
 
 from dask_mongo import read_mongo, to_mongo
 from dask_mongo.core import (
@@ -238,3 +239,36 @@ def test_connection_pooling(connection_kwargs):
 
     assert _get_num_clients() == _CACHE_SIZE
     assert len(_CLIENTS) == 0
+
+
+def test_connection_pooling_hashing(connection_kwargs):
+    _close_clients()
+    _cache_inner.cache_clear()
+
+    opts1 = AutoEncryptionOpts(
+        {"local": {"key": b"\x00" * 96}},
+        "k.d",
+        key_vault_client=_get_client(connection_kwargs),
+    )
+    client1 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts1}))
+    client2 = _get_client(
+        dict(
+            connection_kwargs,
+            **{"auto_encryption_opts": opts1, "host": ["localhost", "localhost:27017"]},
+        )
+    )
+    opts3 = AutoEncryptionOpts(
+        {"local": {"key": b"\x00" * 96}},
+        "k.d",
+        key_vault_client=_get_client(connection_kwargs),
+    )
+    client3 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts3}))
+
+    def get_client_opts(client):
+        return client._MongoClient__options._ClientOptions__auto_encryption_opts
+
+    assert get_client_opts(client1) == get_client_opts(client2)
+    assert get_client_opts(client1) != get_client_opts(client3)
+    assert get_client_opts(client2) != get_client_opts(client3)
+    for opts, c in [(opts1, client1), (opts1, client2), (opts3, client3)]:
+        assert opts == get_client_opts(c)
