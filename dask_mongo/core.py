@@ -4,7 +4,7 @@ import atexit
 import weakref
 from collections.abc import Mapping
 from copy import copy
-from functools import lru_cache
+from functools import cache
 from math import ceil
 from typing import Any
 
@@ -17,9 +17,6 @@ from dask.graph_manipulation import checkpoint
 from ._version import __version__
 
 appname = f"dask-mongo/{__version__}"
-
-_CACHE_SIZE = 16
-_CLIENTS = weakref.WeakValueDictionary({})
 
 
 def _recursive_tupling(item):
@@ -45,24 +42,16 @@ class _FrozenKwargs(dict):
         )
 
 
-@lru_cache(_CACHE_SIZE, typed=True)
+@cache
 def _cache_inner(kwargs):
     return pymongo.MongoClient(appname=appname, **kwargs)
-
-
-@atexit.register
-def _close_clients():
-    global _CLIENTS
-    for client in _CLIENTS.values():
-        client.close()
-    _CLIENTS = weakref.WeakValueDictionary({})
 
 
 def _get_client(kwargs):
     global _CLIENTS
     frozen_kwargs = _FrozenKwargs(kwargs)
     client = _cache_inner(frozen_kwargs)
-    _CLIENTS[frozen_kwargs] = client
+    atexit.register(weakref.WeakMethod(client.close))
     return client
 
 

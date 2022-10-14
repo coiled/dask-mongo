@@ -12,14 +12,7 @@ from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa
 from pymongo.encryption_options import _HAVE_PYMONGOCRYPT, AutoEncryptionOpts
 
 from dask_mongo import read_mongo, to_mongo
-from dask_mongo.core import (
-    _CACHE_SIZE,
-    _CLIENTS,
-    _cache_inner,
-    _close_clients,
-    _FrozenKwargs,
-    _get_client,
-)
+from dask_mongo.core import _cache_inner, _FrozenKwargs, _get_client
 
 
 def _get_num_clients():
@@ -206,7 +199,6 @@ def test_connection_pooling(connection_kwargs):
     records = gen_data(size=10)
     database = "test-db"
     collection = "test-collection"
-    _close_clients()
     _cache_inner.cache_clear()
     mongo_client = _get_client(connection_kwargs)
     database_ = mongo_client.get_database(database)
@@ -219,7 +211,9 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
     assert _get_num_clients() == 1
-    connection_kwargs.update({"host": ["localhost", "localhost:27017"]})
+    num_clients = 10
+
+    connection_kwargs.update({"maxPoolSize": num_clients + 10})
     read_mongo(
         database,
         collection,
@@ -228,25 +222,23 @@ def test_connection_pooling(connection_kwargs):
     )
 
     assert _get_num_clients() == 2
-    for i in range(round(_CACHE_SIZE * 1.2)):
-        connection_kwargs.update({"maxPoolSize": i})
+    _cache_inner.cache_clear()
+    for i in range(num_clients):
+        connection_kwargs.update({"maxPoolSize": i + 1})
         read_mongo(
             database,
             collection,
             chunksize=5,
             connection_kwargs=connection_kwargs,
         )
-    _close_clients()
 
-    assert _get_num_clients() == _CACHE_SIZE
-    assert len(_CLIENTS) == 0
+    assert _get_num_clients() == num_clients
 
 
 @pytest.mark.skipif(
     not _HAVE_PYMONGOCRYPT, reason="pymongocrypt must be installed for this test"
 )
 def test_connection_pooling_hashing(connection_kwargs):
-    _close_clients()
     _cache_inner.cache_clear()
 
     opts1 = AutoEncryptionOpts(
