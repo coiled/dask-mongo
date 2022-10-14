@@ -9,7 +9,7 @@ from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
-from pymongo.encryption_options import AutoEncryptionOpts
+from pymongo.encryption_options import _HAVE_PYMONGOCRYPT, AutoEncryptionOpts
 
 from dask_mongo import read_mongo, to_mongo
 from dask_mongo.core import (
@@ -242,6 +242,9 @@ def test_connection_pooling(connection_kwargs):
     assert len(_CLIENTS) == 0
 
 
+@pytest.mark.skipif(
+    not _HAVE_PYMONGOCRYPT, reason="pymongocrypt must be installed for this test"
+)
 def test_connection_pooling_hashing(connection_kwargs):
     _close_clients()
     _cache_inner.cache_clear()
