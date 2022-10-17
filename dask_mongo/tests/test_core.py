@@ -12,7 +12,7 @@ from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa
 from pymongo.encryption_options import _HAVE_PYMONGOCRYPT, AutoEncryptionOpts
 
 from dask_mongo import read_mongo, to_mongo
-from dask_mongo.core import _cache_inner, _FrozenKwargs, _get_client
+from dask_mongo.core import _CACHE_SIZE, _cache_inner, _FrozenKwargs, _get_client
 
 
 def _get_num_clients():
@@ -211,9 +211,8 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
     assert _get_num_clients() == 1
-    num_clients = 10
 
-    connection_kwargs.update({"maxPoolSize": num_clients + 10})
+    connection_kwargs.update({"maxPoolSize": 1})
     read_mongo(
         database,
         collection,
@@ -223,7 +222,7 @@ def test_connection_pooling(connection_kwargs):
 
     assert _get_num_clients() == 2
     _cache_inner.cache_clear()
-    for i in range(num_clients):
+    for i in range(round(_CACHE_SIZE * 1.2)):
         connection_kwargs.update({"maxPoolSize": i + 1})
         read_mongo(
             database,
@@ -232,7 +231,7 @@ def test_connection_pooling(connection_kwargs):
             connection_kwargs=connection_kwargs,
         )
 
-    assert _get_num_clients() == num_clients
+    assert _get_num_clients() == _CACHE_SIZE
 
 
 @pytest.mark.skipif(
@@ -247,27 +246,18 @@ def test_connection_pooling_hashing(connection_kwargs):
         key_vault_client=_get_client(connection_kwargs),
     )
     client1 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts1}))
-    client2 = _get_client(
-        dict(
-            connection_kwargs,
-            **{"auto_encryption_opts": opts1, "host": ["localhost", "localhost:27017"]},
-        )
-    )
+    client2 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts1}))
     opts3 = AutoEncryptionOpts(
         {"local": {"key": b"\x00" * 96}},
         "k.d",
         key_vault_client=_get_client(connection_kwargs),
     )
+
     client3 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts3}))
 
-    def get_client_opts(client):
-        return client._MongoClient__options._ClientOptions__auto_encryption_opts
-
-    assert get_client_opts(client1) == get_client_opts(client2)
-    assert get_client_opts(client1) != get_client_opts(client3)
-    assert get_client_opts(client2) != get_client_opts(client3)
-    for opts, c in [(opts1, client1), (opts1, client2), (opts3, client3)]:
-        assert opts == get_client_opts(c)
+    assert client1 is client2
+    assert client1 is not client3
+    assert client2 is not client3
 
     a = _FrozenKwargs({"auto_encryption_opts": opts3})
     a_hash = hash(a)

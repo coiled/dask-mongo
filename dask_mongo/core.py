@@ -4,7 +4,7 @@ import atexit
 import weakref
 from collections.abc import Mapping
 from copy import copy
-from functools import cache
+from functools import lru_cache
 from math import ceil
 from typing import Any
 
@@ -17,6 +17,8 @@ from dask.graph_manipulation import checkpoint
 from ._version import __version__
 
 appname = f"dask-mongo/{__version__}"
+
+_CACHE_SIZE = 16
 
 
 def _recursive_tupling(item):
@@ -42,7 +44,7 @@ class _FrozenKwargs(dict):
         )
 
 
-@cache
+@lru_cache(_CACHE_SIZE, typed=True)
 def _cache_inner(kwargs):
     return pymongo.MongoClient(appname=appname, **kwargs)
 
