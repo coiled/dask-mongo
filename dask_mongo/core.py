@@ -46,15 +46,13 @@ class _FrozenKwargs(dict):
 
 @lru_cache(_CACHE_SIZE, typed=True)
 def _cache_inner(kwargs):
-    return pymongo.MongoClient(appname=appname, **kwargs)
+    client = pymongo.MongoClient(appname=appname, **kwargs)
+    atexit.register(weakref.WeakMethod(client.close))
+    return client
 
 
 def _get_client(kwargs):
-    global _CLIENTS
-    frozen_kwargs = _FrozenKwargs(kwargs)
-    client = _cache_inner(frozen_kwargs)
-    atexit.register(weakref.WeakMethod(client.close))
-    return client
+    return _cache_inner(_FrozenKwargs(kwargs))
 
 
 def write_mongo(
