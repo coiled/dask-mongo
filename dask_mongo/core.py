@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+try:
+    from os import register_at_fork
+except ImportError:
+    register_at_fork = None
 import atexit
 import weakref
 from collections.abc import Mapping
@@ -49,6 +53,14 @@ def _cache_inner(kwargs):
     client = pymongo.MongoClient(appname=appname, **kwargs)
     atexit.register(weakref.WeakMethod(client.close))
     return client
+
+
+def _clear_cache():
+    _cache_inner.cache_clear()
+
+
+if register_at_fork:
+    register_at_fork(after_in_child=_clear_cache)
 
 
 def _get_client(kwargs):
