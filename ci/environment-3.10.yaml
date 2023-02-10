@@ -7,4 +7,6 @@ dependencies:
   - pymongo
   - mongodb
   - pytest
-  - pymongocrypt
+  - pip
+  - pip:
+    - pymongocrypt
