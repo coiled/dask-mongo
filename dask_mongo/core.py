@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+try:
+    from os import register_at_fork
+except ImportError:
+    register_at_fork = None
+import atexit
+import weakref
+from collections.abc import Mapping
 from copy import copy
+from functools import lru_cache
 from math import ceil
 from typing import Any
 
@@ -14,6 +22,50 @@ from ._version import __version__
 
 appname = f"dask-mongo/{__version__}"
 
+_CACHE_SIZE = 16
+
+
+def _recursive_tupling(item):
+    if isinstance(item, list):
+        return tuple([_recursive_tupling(i) for i in item])
+    if isinstance(item, Mapping):
+        return tuple(
+            [(_recursive_tupling(k), _recursive_tupling(v)) for k, v in item.items()]
+        )
+    else:
+        return item
+
+
+class _FrozenKwargs(dict):
+    def __hash__(self):
+        return hash(
+            frozenset(
+                [
+                    (_recursive_tupling(k), _recursive_tupling(v))
+                    for k, v in self.items()
+                ]
+            )
+        )
+
+
+@lru_cache(_CACHE_SIZE, typed=True)
+def _cache_inner(kwargs):
+    client = pymongo.MongoClient(appname=appname, **kwargs)
+    atexit.register(weakref.WeakMethod(client.close))
+    return client
+
+
+def _clear_cache():
+    _cache_inner.cache_clear()
+
+
+if register_at_fork:
+    register_at_fork(after_in_child=_clear_cache)
+
+
+def _get_client(kwargs):
+    return _cache_inner(_FrozenKwargs(kwargs))
+
 
 def write_mongo(
     values: list[dict],
@@ -21,12 +73,12 @@ def write_mongo(
     database: str,
     collection: str,
 ) -> None:
-    with pymongo.MongoClient(appname=appname, **connection_kwargs) as mongo_client:
-        coll = mongo_client[database][collection]
-        # `insert_many` will mutate its input by inserting a "_id" entry.
-        # This can lead to confusing results; pass copies to it to preserve the input.
-        values = [copy(v) for v in values]
-        coll.insert_many(values)
+    mongo_client = _get_client(connection_kwargs)
+    coll = mongo_client[database][collection]
+    # `insert_many` will mutate its input by inserting a "_id" entry.
+    # This can lead to confusing results; pass copies to it to preserve the input.
+    values = [copy(v) for v in values]
+    coll.insert_many(values)
 
 
 def to_mongo(
@@ -81,9 +133,9 @@ def fetch_mongo(
     include_last: bool,
 ) -> list[dict[str, Any]]:
     match2 = {"_id": {"$gte": id_min, "$lte" if include_last else "$lt": id_max}}
-    with pymongo.MongoClient(appname=appname, **connection_kwargs) as mongo_client:
-        coll = mongo_client[database][collection]
-        return list(coll.aggregate([{"$match": match}, {"$match": match2}]))
+    mongo_client = _get_client(connection_kwargs)
+    coll = mongo_client[database][collection]
+    return list(coll.aggregate([{"$match": match}, {"$match": match2}]))
 
 
 def read_mongo(
@@ -115,31 +167,31 @@ def read_mongo(
     if not match:
         match = {}
 
-    with pymongo.MongoClient(appname=appname, **connection_kwargs) as mongo_client:
-        coll = mongo_client[database][collection]
+    mongo_client = _get_client(connection_kwargs)
+    coll = mongo_client[database][collection]
 
-        nrows = next(
-            (
-                coll.aggregate(
-                    [
-                        {"$match": match},
-                        {"$count": "count"},
-                    ]
-                )
-            )
-        )["count"]
-
-        npartitions = int(ceil(nrows / chunksize))
-
-        partitions_ids = list(
+    nrows = next(
+        (
             coll.aggregate(
                 [
                     {"$match": match},
-                    {"$bucketAuto": {"groupBy": "$_id", "buckets": npartitions}},
-                ],
-                allowDiskUse=True,
+                    {"$count": "count"},
+                ]
             )
         )
+    )["count"]
+
+    npartitions = int(ceil(nrows / chunksize))
+
+    partitions_ids = list(
+        coll.aggregate(
+            [
+                {"$match": match},
+                {"$bucketAuto": {"groupBy": "$_id", "buckets": npartitions}},
+            ],
+            allowDiskUse=True,
+        )
+    )
 
     common_args = (connection_kwargs, database, collection, match)
     name = "read_mongo-" + tokenize(common_args, chunksize)

@@ -9,8 +9,14 @@ from dask.bag.utils import assert_eq
 from distributed.utils_test import cluster_fixture  # noqa: F401
 from distributed.utils_test import gen_cluster  # noqa: F401
 from distributed.utils_test import cleanup, client, loop, loop_in_thread  # noqa: F401
+from pymongo.encryption_options import _HAVE_PYMONGOCRYPT, AutoEncryptionOpts
 
 from dask_mongo import read_mongo, to_mongo
+from dask_mongo.core import _CACHE_SIZE, _cache_inner, _FrozenKwargs, _get_client
+
+
+def _get_num_clients():
+    return _cache_inner.cache_info().currsize
 
 
 @pytest.fixture
@@ -187,3 +193,73 @@ def test_read_mongo_chunksize(connection_kwargs):
         3,
         1,
     )
+
+
+def test_connection_pooling(connection_kwargs):
+    records = gen_data(size=10)
+    database = "test-db"
+    collection = "test-collection"
+    _cache_inner.cache_clear()
+    mongo_client = _get_client(connection_kwargs)
+    database_ = mongo_client.get_database(database)
+    database_[collection].insert_many(deepcopy(records))
+    for _ in range(3):
+        read_mongo(
+            database,
+            collection,
+            chunksize=5,
+            connection_kwargs=connection_kwargs,
+        )
+    assert _get_num_clients() == 1
+
+    connection_kwargs.update({"maxPoolSize": 1})
+    read_mongo(
+        database,
+        collection,
+        chunksize=5,
+        connection_kwargs=connection_kwargs,
+    )
+
+    assert _get_num_clients() == 2
+    _cache_inner.cache_clear()
+    for i in range(round(_CACHE_SIZE * 1.2)):
+        connection_kwargs.update({"maxPoolSize": i + 1})
+        read_mongo(
+            database,
+            collection,
+            chunksize=5,
+            connection_kwargs=connection_kwargs,
+        )
+
+    assert _get_num_clients() == _CACHE_SIZE
+
+
+@pytest.mark.skipif(
+    not _HAVE_PYMONGOCRYPT, reason="pymongocrypt must be installed for this test"
+)
+def test_connection_pooling_hashing(connection_kwargs):
+    _cache_inner.cache_clear()
+
+    opts1 = AutoEncryptionOpts(
+        {"local": {"key": b"\x00" * 96}},
+        "k.d",
+        key_vault_client=_get_client(connection_kwargs),
+    )
+    client1 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts1}))
+    client2 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts1}))
+    opts3 = AutoEncryptionOpts(
+        {"local": {"key": b"\x00" * 96}},
+        "k.d",
+        key_vault_client=_get_client(connection_kwargs),
+    )
+
+    client3 = _get_client(dict(connection_kwargs, **{"auto_encryption_opts": opts3}))
+
+    assert client1 is client2
+    assert client1 is not client3
+    assert client2 is not client3
+
+    a = _FrozenKwargs({"auto_encryption_opts": opts3})
+    a_hash = hash(a)
+    a["foo"] = ["bar"]
+    assert a_hash != hash(a)
